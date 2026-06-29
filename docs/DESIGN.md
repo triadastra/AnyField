@@ -259,6 +259,15 @@ type Field = {
   title: string;
   createdAt: number;
   theme: FieldTheme;          // palette + motion config
+  lexicon: LexiconEntry[];    // user-taught meanings (§8.2): "meow" -> identity
+};
+
+// User-taught routing hints — meaning is personal. Never auto-applied to text;
+// only influences which facet a matching bubble routes to.
+type LexiconEntry = {
+  token: string;              // e.g. "meow", "Belle", an inside joke
+  facetHint?: string;         // facet id/label to bias toward
+  role?: "identity" | "person" | "place" | "topic";
 };
 
 // A single layer of a droplet (a droplet may have just one).
@@ -342,6 +351,12 @@ render cost stays bounded.
 **Mutability without loss (Pillar 2):** edits bump `updatedAt` and push prior
 state into `history` (append-only). `revivedAt`/`pinnedPresent` let an old
 droplet float back to the surface, keeping the field in the eternal present.
+
+**Verbatim text (Pillar 2, character level):** a `text` layer's `body` and any
+`caption` are stored **exactly as typed** and rendered exactly as stored. The
+pipeline never normalizes, trims, autocorrects, or canonicalizes a user's
+words — `itttt` is `itttt`. The routing `vector` is derived *from* the text but
+is a separate field; it never feeds back into what's shown.
 
 **Color extraction:** dominant `hue`/`saturation` from the strongest visual
 layer (image pixels / track artwork), falling back to text-sentiment → palette.
@@ -436,27 +451,44 @@ leader-follower** approach (k-means-like, but the number of clusters grows on
 demand), which fits all four constraints.
 
 ### 8.2 Step 1 — Featurize each message
-For each sent bubble, compute a feature vector `v` (cheap, on-device, per
-message):
 
-- **Text features:** normalize → tokens/bigrams. MVP = a sparse, hashed
-  bag-of-words weighted by the user's *own* TF-IDF (so words distinctive to
-  *you* matter more). Cheap and needs no model.
+> **Verbatim is law — the bubble is never modified.** `itttt` stays `itttt`,
+> everywhere: in storage *and* on screen. The elongation **is the meaning** —
+> the emphasis, the affect, the *you* of it — and rewriting it to `it` destroys
+> exactly that. Featurizing only *reads* the text to derive a separate routing
+> vector; it **never** edits, canonicalizes, or replaces the original. This is
+> Pillar 2 taken to the character level. (See §8.5 for the hard guarantee.)
+
+With that rule fixed, compute a read-only feature vector `v` from the raw text
+(cheap, on-device, per message):
+
+- **Text features:** hashed **character n-grams** over the *raw* bubble (no
+  rewriting), weighted by the user's *own* TF-IDF so words distinctive to *you*
+  matter more. Cheap, model-free, and naturally elongation- and script-tolerant
+  for *matching* — without ever altering what's stored.
 - **Sentiment / mood:** a small valence–arousal score (lexicon-based to start).
-- **Emoji & entities:** emoji and simple entity hits ("macaron" → food,
-  artist/genre names → music) as extra weighted dimensions.
-- **Multilingual / mixed-script:** use **character n-grams** (script-agnostic) so
-  a message like `Belle好好看` (Latin + Chinese in one bubble) still produces a
-  usable vector, and emoji carry meaning across languages. A multilingual
-  embedding model later improves cross-language grouping; n-grams are the
-  zero-dependency floor.
-- **Elongation & repetition = affect, not new content:** normalize `ittt → it`
-  and `😚😚😚 → 😚` *for routing*, but feed the stripped intensity (char-repeat
-  length, emoji count, ALL-CAPS) into an **arousal** dimension and into the
-  droplet's `weight`. Spammy-looking repetition becomes *emphasis*, not new
-  topics — which is half of why this stops reading as spam.
+- **Multilingual / mixed-script:** char n-grams are script-agnostic, so a bubble
+  like `Belle好好看` (Latin + Chinese together) still produces a usable vector,
+  and emoji carry meaning across languages. A multilingual embedding model later
+  improves cross-language grouping; n-grams are the zero-dependency floor.
+- **Intensity from elongation/repetition (read, don't rewrite):** the *length* of
+  an elongation (`itttt`), repeated emoji (`😚😚😚`), and ALL-CAPS are read as an
+  **arousal** signal that raises the droplet's `weight` — louder, more emphatic,
+  bigger on the field. The characters themselves are kept exactly as typed; we
+  only *measure* the emphasis, never strip it.
+- **Entities (anchor-aware):** known names resolve against the active context —
+  e.g. while sharing KISS OF LIFE, **"Belle" resolves to the group's member**,
+  so `Belle好好看` reads as idol appreciation tied to *that* musical moment, not a
+  stray word. Entities come from shared-track metadata + a **personal lexicon**
+  the user can teach (see below).
+- **Personal lexicon (meaning is personal):** idiosyncratic tokens carry identity
+  the model can't guess — e.g. **"Meow" may be self-identity**, not noise. Users
+  can pin a token/phrase to a facet ("meow → *me / my persona*") and the router
+  respects it. The system never *flattens* a short or playful bubble into
+  "whimsy" by default.
 - **Color/hue:** from any image/artwork, or a word→palette mapping for text.
-- Concatenate + L2-normalize → `v` (stored as `Droplet.vector`).
+- Concatenate + L2-normalize the *vector* (not the text) → `v` (stored alongside
+  the verbatim bubble as `Droplet.vector`).
 
 > Upgrade path: swap the bag-of-words for a **tiny quantized sentence-embedding
 > model** (e.g. transformers.js, optionally WebGPU-accelerated). The rest of the
@@ -526,9 +558,10 @@ and it's a **rendering/aggregation** concern, *never* a deletion:
   quads and become pool *substance*. Bounded render cost; nothing lost.
 
 > The guarantee: **classification and merging only ever change how things are
-> *drawn and grouped*. The source bubble, its text, and its edit history are
-> always retained** (Pillar 2). "Merge" here means *visually composite*, not
-> *overwrite*.
+> *drawn and grouped* — never the text itself.** The source bubble is retained
+> **verbatim, to the character** (`itttt` stays `itttt`); routing/merging touch
+> only position, grouping, and visual weight, never the words (Pillar 2). "Merge"
+> means *visually composite*, never *rewrite* or *overwrite*.
 
 ### 8.6 Step 5 — Periodic facet maintenance
 On a slower cadence (e.g. every few seconds / N droplets), tidy the facet set so
@@ -578,17 +611,18 @@ A typical rapid-fire session, just after sharing **"Nothing" — KISS OF LIFE**:
 | Bubble sent | Featurize / route | Result on the Field |
 |-------------|-------------------|---------------------|
 | 🎵 *share "Nothing"* | `track` layer (Spotify); opens a **now-playing context anchor** | seeds / feeds the **music pool** |
-| *"it's not worth ittt it's not worth ittt"* | elongation `ittt→it`; in-message repeat → high arousal/`weight`; **matches the track's lyrics** → **lyric-binds to the song** | a lyric layer on the music post, not a stray droplet |
-| *"Meow"* | low semantic content, playful affect | a small **whimsy** droplet (or a tiny mood pool) |
-| *"Belle好好看"* | mixed Latin+Chinese via char n-grams; entity "Belle" + positive sentiment | an **appreciation** droplet near the music |
-| *😚😚😚* | affect-only, no text; `😚😚😚→😚` for routing, count → intensity | **warms the context** — tints the musical moment, seeds nothing |
+| *"it's not worth ittt it's not worth ittt"* | kept **verbatim** (`ittt` stays `ittt`); the elongation + in-message repeat *read* as high arousal → bigger `weight`; **matches the track's lyrics** → **lyric-binds to the song** | a lyric layer on the music post, sung loud — not a stray droplet |
+| *"Meow"* | **not** dismissed as filler — can be **self-identity**; if pinned in the personal lexicon, routes to an **identity facet** ("me / my persona") | feeds your **identity** pool (or seeds one) |
+| *"Belle好好看"* | mixed Latin+Chinese via char n-grams; **"Belle" resolves to the KISS OF LIFE member** via the now-playing anchor → idol appreciation | **binds to the same musical moment** (KOF), strengthening that pool |
+| *😚😚😚* | affect-only, no text; kept verbatim, the **count** *reads* as intensity (we measure, never trim) | **warms the context** — tints the musical moment, seeds nothing |
 
 **On Twitter:** five separate posts shoved into followers' feeds — textbook spam.
-**On AnyField:** **one warm musical moment.** The music pool brightens and grows
-(share + bound lyric + affectionate tint), with a little "meow" and an
-appreciation note beside it. Pulled, not pushed — and every original bubble is
-still individually readable when you zoom in (Pillar 2). The exact behavior the
-product exists to create.
+**On AnyField:** **one warm musical moment, plus a touch of you.** The KOF music
+pool brightens and grows (share + the verbatim *"it's not worth ittt"* lyric +
+Belle's idol-appreciation + the 😚 affection tint), while *"Meow"* drifts to your
+**identity** pool — a little flicker of self alongside the music. Pulled, not
+pushed; nothing rewritten; every original bubble still readable verbatim when you
+zoom in (Pillar 2). The exact behavior the product exists to create.
 
 ---
 
@@ -631,19 +665,23 @@ MVP = Phases 0–9, all local.
 
 ## 11. Open questions for later
 
-1. **Facet routing quality** — start with hue + tags + keyword/sentiment
-   features (cheap, on-device). When is a real embedding model worth the weight?
-   How do we let users **merge/split/rename** facets when the router gets it
-   wrong?
-2. **Composting depth** — should fully-composted droplets eventually dissolve
+1. **Facet routing quality** — start with char n-grams + sentiment + hue
+   (cheap, on-device). When is a real embedding model worth the weight? How do we
+   let users **merge/split/rename** facets when the router gets it wrong?
+2. **Entity & identity resolution** — the now-playing anchor resolves names like
+   *Belle* against a shared track's members, and the **personal lexicon** lets a
+   user teach idiosyncratic meaning (*"meow" = my identity*). How much should the
+   system *infer* vs. *ask*? How do we surface "I think this means X — right?"
+   without nagging? How does the lexicon bootstrap from almost nothing?
+3. **Composting depth** — should fully-composted droplets eventually dissolve
    into pure pool color (true "season" compost), or always stay zoomable-to?
    (Lean: dissolve *visually*, retain data.)
-3. **One field with facets vs. multiple fields** (e.g. a "private" field vs. a
+4. **One field with facets vs. multiple fields** (e.g. a "private" field vs. a
    shared one). Facets may make multiple fields unnecessary.
-4. **Spam guardrails for *self*** — at 20/min, do we want gentle de-duplication
+5. **Spam guardrails for *self*** — at 20/min, do we want gentle de-duplication
    (near-identical droplets thicken one spot instead of multiplying)? Probably
-   yes, as a routing nicety, not a limit.
-5. **Moderation/safety** once sharing exists (Phase 10): visiting is opt-in, no
+   yes, as a routing nicety, not a limit. (Visual only — originals kept verbatim.)
+6. **Moderation/safety** once sharing exists (Phase 10): visiting is opt-in, no
    push, report/block on share links.
 
 ---

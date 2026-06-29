@@ -445,6 +445,16 @@ message):
 - **Sentiment / mood:** a small valence–arousal score (lexicon-based to start).
 - **Emoji & entities:** emoji and simple entity hits ("macaron" → food,
   artist/genre names → music) as extra weighted dimensions.
+- **Multilingual / mixed-script:** use **character n-grams** (script-agnostic) so
+  a message like `Belle好好看` (Latin + Chinese in one bubble) still produces a
+  usable vector, and emoji carry meaning across languages. A multilingual
+  embedding model later improves cross-language grouping; n-grams are the
+  zero-dependency floor.
+- **Elongation & repetition = affect, not new content:** normalize `ittt → it`
+  and `😚😚😚 → 😚` *for routing*, but feed the stripped intensity (char-repeat
+  length, emoji count, ALL-CAPS) into an **arousal** dimension and into the
+  droplet's `weight`. Spammy-looking repetition becomes *emphasis*, not new
+  topics — which is half of why this stops reading as spam.
 - **Color/hue:** from any image/artwork, or a word→palette mapping for text.
 - Concatenate + L2-normalize → `v` (stored as `Droplet.vector`).
 
@@ -468,6 +478,19 @@ else (τ_new <= sim* < τ_join): assign to f* but mark "weak" // borderline; may
   a single "**field resolution**" slider (fewer big pools ↔ many fine pools).
 - Cost is **O(#facets)** cosine per message — trivial (#facets is bounded to a
   few dozen by maintenance, §8.6). Easily keeps up with 20/min, or far more.
+
+**Context anchor (now-playing / session).** A recent **share** or the actively
+playing track creates a short-lived **prior** that biases routing: fragments
+fired in the seconds after a song share lean toward that track's facet (bursts
+are usually *about* the thing you just shared). Two special cases:
+
+- **Lyric binding.** If a message matches the shared/playing track's lyrics
+  (e.g. *"it's not worth ittt"* while sharing that song), **bind it to the track
+  post** as a lyric layer instead of floating it off as a lone droplet.
+- **Affect-only bubbles.** A pure-emoji bubble (`😚😚😚`) with no text content
+  doesn't seed its own facet; it **tints the current context** — warming the
+  hue/saturation of whatever was just posted — so reactions decorate the moment
+  rather than littering the field.
 
 ### 8.4 Step 3 — Centroid drift = the eternal present
 When a droplet joins facet `f`, update the centroid with an **exponential moving
@@ -548,6 +571,24 @@ After routing/aggregation, the engine produces positions and emits flat
 
 These are the knobs that decide whether the field feels like a *coherent
 painting* or a *noisy mess*; they're worth tuning against real spam sessions.
+
+### 8.9 Worked example — a real burst
+A typical rapid-fire session, just after sharing **"Nothing" — KISS OF LIFE**:
+
+| Bubble sent | Featurize / route | Result on the Field |
+|-------------|-------------------|---------------------|
+| 🎵 *share "Nothing"* | `track` layer (Spotify); opens a **now-playing context anchor** | seeds / feeds the **music pool** |
+| *"it's not worth ittt it's not worth ittt"* | elongation `ittt→it`; in-message repeat → high arousal/`weight`; **matches the track's lyrics** → **lyric-binds to the song** | a lyric layer on the music post, not a stray droplet |
+| *"Meow"* | low semantic content, playful affect | a small **whimsy** droplet (or a tiny mood pool) |
+| *"Belle好好看"* | mixed Latin+Chinese via char n-grams; entity "Belle" + positive sentiment | an **appreciation** droplet near the music |
+| *😚😚😚* | affect-only, no text; `😚😚😚→😚` for routing, count → intensity | **warms the context** — tints the musical moment, seeds nothing |
+
+**On Twitter:** five separate posts shoved into followers' feeds — textbook spam.
+**On AnyField:** **one warm musical moment.** The music pool brightens and grows
+(share + bound lyric + affectionate tint), with a little "meow" and an
+appreciation note beside it. Pulled, not pushed — and every original bubble is
+still individually readable when you zoom in (Pillar 2). The exact behavior the
+product exists to create.
 
 ---
 

@@ -10,21 +10,36 @@ nothing is pushed at them.
 
 > Status: **design phase.** No app code yet — see the plan below.
 
+## How it works in one breath
+
+You post the way you text a friend — a **chat panel**, fire off 20 bubbles a
+minute, no friction. But the bubbles don't pile up as a chat log. Each one is
+**classified** and flows out onto your **Field**, drifting to the *facet of you*
+it belongs to (your food-taste pool, your bold-music pool, today's mood). The
+Field is a **WebGPU liquid-glass painting** of your interiority — organized by
+facet, not by time — that others can *visit* and read at a glance.
+
 ## Three pillars
 
 1. **Pull, not push.** A personal canvas you *visit*, not a feed pushed at
-   others. Frictionless, unlimited self-expression.
+   others. Input is a familiar chat panel; output is a painting.
 2. **The eternal present.** Unlike Instagram (live-only, then frozen into a dead
-   archive), posts here stay **mutable** and always read as *"this is me, now."*
-   You build on yourself instead of leaving frozen snapshots behind — nothing is
-   deleted, old thoughts recede into fog but can resurface.
-3. **Many-into-one-frame.** Aggregation *is* the feature. A single post is a
-   **composite** — a travel image + a Spotify track + its lyrics + several
-   captions + a mood — and many posts blend into one coherent liquid collage.
+   archive), posts stay **mutable** and always read as *"this is me, now."*
+   Nothing is deleted — old thoughts recede into fog but can resurface.
+3. **Many-into-one-frame (interiority).** Aggregation *is* the feature. Many
+   fragments — a macaron, a track + lyrics, a mood — coexist and blend into one
+   coherent frame organized by **facets of self**, not chronology.
+
+## The hard part
+
+Turning a fast chat stream into a coherent painting is a **classification +
+continuous-merge** problem: online clustering routes each message to a facet,
+near-duplicates *thicken* a region instead of stacking as spam, and **no original
+message is ever suppressed or deleted**. See §3 and §8 of the design.
 
 ### What it isn't
 - ❌ Not a feed. No push, no notifications-at-others, no mass-messaging.
-- ❌ Not an archive of frozen moments.
+- ❌ Not an archive of frozen moments. Not a chat log.
 
 ## The plan
 

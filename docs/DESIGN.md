@@ -834,6 +834,76 @@ MVP = Phases 0–10, all local.
 
 ---
 
+## 12. The Square & the Abouts — the communal layer (exploratory)
+
+> Status: **vision, not MVP.** This is the multi-user scale *above* a single
+> Field — Phase 11+ territory. Captured here so the single-field design stays
+> compatible with it. Opinionated and open to change.
+
+Once Fields can be visited (§9), the question is what the space *between* people
+feels like when you "scroll across profiles and time." The guiding realization:
+
+> **Time was wrong for one self, but it's right for a society.** A self is an
+> eternal present (§1, Pillar 2); a *commons* is alive because of **synchrony** —
+> the sense that others are here *now*. So time, demoted inside a Field, **comes
+> back at the social scale** — as a *current of light over a thematic terrain*,
+> not as the skeleton.
+
+### 12.1 A field of fields (fractal)
+The commons is the **same liquid-blend model, one level up.** Just as droplets
+pool into your facets, **people's *public* facets pool into shared regions**: a
+big "bold music" basin holding many people's music pools (bleeding at the edges),
+a "Brugge" region gathering everyone posting there, a "late-night grief" basin
+drawing many storms together. Self-similar; you already know how to read it.
+
+### 12.2 Two blended axes; zoom is the dial
+This resolves the *"timelined yet chunked"* tension directly:
+
+- **Space = shared facets.** The terrain's layout is thematic (what people are
+  *about*), so it's calm and browsable rather than a racing feed.
+- **Time = a current of light on top.** Fresh droplets across *all* people glow
+  at the surface; scrub time to **replay a wave** — watch a song ripple across
+  dozens of fields this week, or a collective mood roll through.
+- **Zoom mediates individual ↔ collective:**
+  - Focus on **one** person → their pool flips into a **timeline of Episodes**
+    (§3.6) — moments in order. *This is the "each page is timelined" part.*
+  - Pull back → those timelines **dissolve into the shared terrain**, their
+    episodes **chunked** beside others' by **theme × time cells** ("music ·
+    tonight", "grief · this week", "Brugge · 2025"). Chunks are *soft basins* —
+    blended within, bleeding at borders — not hard tiles.
+
+### 12.3 The Square vs. the Abouts (two scales)
+- **The Abouts** — your *surroundings*: a local neighborhood of fields that
+  **resonate** with yours (shared facets, songs, places, moods). Calm, personal,
+  driftable; this is everyday discovery.
+- **The Square** — the global commons terrain: all public fields blended by theme
+  and lit by time. The Abouts is your corner of the Square.
+
+### 12.4 Non-negotiables (or it becomes the feed we're escaping)
+- **Boundary-gated.** Only facets/episodes a person made **public** ever enter the
+  commons. Private storms never surface (§9.1; the gentle-nudge gates entry).
+- **Pull, never push.** You *wander* the Square; nothing is injected into anyone's
+  view, no notifications-at-others. (Pillar 1, preserved at scale.)
+- **No ranking-for-attention, no virality.** Discovery is by **resonance and
+  wandering**, never an engagement-maximizing algorithm. The instant you rank for
+  attention, you've rebuilt the thing AnyField exists to replace.
+- **Verbatim & honest at scale.** Cross-field blending is visual/thematic only;
+  it never edits anyone's words or sanitizes anyone's weather (Pillars 2 + §2).
+
+### 12.5 Open questions (commons)
+- **Resonance metric** — how do we measure "fields that go together" without it
+  becoming a recommender that optimizes engagement? (Lean: similarity of public
+  facet centroids + shared entities; surfaced as *terrain proximity*, not a ranked
+  list.)
+- **Identity vs. dissolution** — how much does a person stay legible as *a person*
+  in a shared basin vs. melting into the collective? Probably zoom-dependent, same
+  as droplet legibility (§7).
+- **Scale & cost** — a field-of-fields is a much bigger render/compute problem;
+  almost certainly needs server-side facet aggregation and streamed tiles. Out of
+  scope until the single-field MVP proves the core.
+
+---
+
 ## Appendix: directory layout (proposed)
 
 ```

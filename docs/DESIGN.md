@@ -111,6 +111,15 @@ are never deleted or sanitized (Pillar 2). This is also a **care** stance:
 difficult feeling is represented respectfully and stays under the user's control
 (§9 boundaries), never gamified or auto-cheered-up.
 
+**Heavy moments — honest, with a gentle nudge (decided).** When a strong storm
+forms, the field renders it **truthfully** *and* quietly offers a single,
+dismissible suggestion — *"keep this to yourself?"* — as a one-tap shortcut to
+make that episode/facet private (§9.1). It is **only ever a suggestion**: never
+automatic, never repeated naggingly, never a value judgment about the feeling.
+The default visibility is unchanged unless the user taps it. The aim is to put a
+boundary control *within reach exactly when it's wanted*, while leaving the
+choice — and the honesty of the storm — entirely with the user.
+
 ---
 
 ## 3. Composition model: facets, not a timeline
@@ -765,6 +774,10 @@ default posture already protects the user, and we make control explicit:
 - **Care, not surveillance.** No engagement metrics shown to others, no “seen by”
   pressure, no algorithmic redistribution of your hard moments. Difficult feeling
   stays represented with dignity (§2) and under your control.
+- **Gentle nudge on storms (decided).** When a strong storm forms, surface a
+  single dismissible *"keep this to yourself?"* — a one-tap shortcut to privatize
+  that episode/facet. A suggestion only: never automatic, never nagging, never a
+  judgment; default visibility is unchanged unless the user taps it.
 
 > The product's job is to let someone express *everything* — delight and pain and
 > defiance — while never taking the boundary decision away from them.
@@ -810,11 +823,12 @@ MVP = Phases 0–10, all local.
 5. **Spam guardrails for *self*** — at 20/min, do we want gentle de-duplication
    (near-identical droplets thicken one spot instead of multiplying)? Probably
    yes, as a routing nicety, not a limit. (Visual only — originals kept verbatim.)
-6. **Emotional weather & care** — how strongly should affect drive palette/motion
-   before it feels manipulative or performative? Should a storm ever *auto-suggest*
-   privacy ("keep this to yourself?"), and is that supportive or paternalistic?
-   The line: represent hard feeling honestly, never gamify it, never decide for
-   the user.
+6. **Emotional weather & care** — *Decided:* honest rendering + a gentle,
+   dismissible "keep this to yourself?" nudge on strong storms (§2, §9.1) — a
+   suggestion, never automatic. Still open: how strongly should affect drive
+   palette/motion before it feels performative, and what exactly counts as a
+   "strong storm" trigger (intensity threshold, sustained vs. spike)? Tune
+   against real sessions; never gamify, never decide for the user.
 7. **Moderation/safety** once sharing exists (Phase 11): visiting is opt-in, no
    push, report/block on share links; per-facet visibility is the primary control.
 

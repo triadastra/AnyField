@@ -82,10 +82,34 @@ Visual principles:
 | **Color as gravity** | Posts of similar hue/theme drift together and merge into regions ("a warm corner," "a blue mood"). |
 | **Age as depth** | Fresh posts surface bright and sharp; older posts sink into frosted fog and desaturate. |
 | **Glass, not flat** | Everything is refractive frosted glass — light bends through the surface; motion causes subtle parallax. |
-| **Calm motion** | Slow, fluid-like drift. Never frantic. The field breathes. |
+| **Emotional weather, not always calm** | The field's palette and motion span a full range — serene drift *and* turbulent storm. Calm is the resting state, not the only state. |
 
 The emotional target: *opening your Field should feel like looking into a
 lava-lamp made of your own thoughts* — mesmerizing, personal, low-pressure.
+
+### Emotional weather (the field must be honest)
+
+A portrait that can show delight but not pain or defiance is a **lie**. Real
+high-volume self-expression includes nervousness (`h-h-Hi`), grief
+(*新人们爱的那个镜子已经不在了* — the mirror they loved is gone), pain (*好痛*),
+and hard boundaries (*我拒绝再次妥协我的边界* → *get the fuck out*). The Field has
+to hold all of it with dignity — not prettify it away.
+
+So the liquid blend has **weather**, driven by the affect of recent droplets
+(valence + arousal, §8.2):
+
+| Mood | Palette | Motion | Glass |
+|------|---------|--------|-------|
+| Calm / content | warm, soft | slow drift, gentle breathing | clear, smooth refraction |
+| Tender / wistful | desaturated blues, fog | slow sink, long fades | soft, hazy |
+| Excited / loud | bright, saturated | quick ripples, bigger droplets | sharp highlights |
+| Pain / anger | deep reds, high contrast, dark | turbulent churn, sharp domain-warp | cracked/streaked refraction |
+
+Weather is **local** (a stormy facet next to a calm one) and **temporary** — it
+eases back toward calm as the storm's droplets age, but the droplets themselves
+are never deleted or sanitized (Pillar 2). This is also a **care** stance:
+difficult feeling is represented respectfully and stays under the user's control
+(§9 boundaries), never gamified or auto-cheered-up.
 
 ---
 
@@ -178,13 +202,33 @@ rather than overwhelming:
 - **Stability bias.** New droplets ease into their pool; existing pools barely
   move. The field is a *place*, not a kaleidoscope that reshuffles on every post.
 
-### 3.6 Observable by others (the portrait)
+### 3.6 Episodes — a burst is a moment with an arc
+
+Facets answer *"which part of me?"* but a rapid burst often also has a **shape in
+time**: a single sitting that travels nervous → eager → delighted → wistful →
+hurt → defiant. Routing each droplet to its facet would scatter that arc and lose
+something true.
+
+So, alongside facet routing, a burst (droplets within a short idle gap) is also
+grouped into an **Episode** — a lightweight thread that records the **emotional
+trajectory** of that moment. Episodes are a *secondary* lens:
+
+- Droplets still live in their facets (the spatial portrait is unchanged).
+- An episode adds a faint **current/eddy** through the field connecting that
+  burst, and stores its affect arc — so a moment can be *replayed* as a small
+  emotional journey, not just seen as scattered points.
+- This is how the field honors that *"h-h-Hi … good好多朋友复活了 … 好痛 … get the
+  fuck out"* was **one episode**, a real swing of feeling, without flattening it
+  into either a timeline or a single mood.
+
+### 3.7 Observable by others (the portrait)
 
 Because the field is organized by facets rather than time, a visitor sees a
 **coherent portrait** at a glance: the warm food-pool, the dense bold-music pool,
-the small wistful-mood eddy. They can read *who you are right now* without
-scrolling a history — and zoom into any facet for the individual droplets. This
-is what makes high-volume, simultaneous expression **legible to others**.
+the small wistful-mood eddy, a stormy red corner. They can read *who you are right
+now* without scrolling a history — and zoom into any facet (or replay an episode,
+§3.6) for the individual droplets. This is what makes high-volume, simultaneous
+expression **legible to others** — within the boundaries you set (§9).
 
 ---
 
@@ -271,16 +315,23 @@ type LexiconEntry = {
 };
 
 // A single layer of a droplet (a droplet may have just one).
+// NOTE: all human text (`body`, captions) is stored VERBATIM — never normalized.
 type Layer =
   | { kind: "image"; blobKey: string; alt?: string }
   | { kind: "text";  body: string }                       // a caption / thought
+  | { kind: "emote"; body: string }                       // *震惊/诧异* — self-narrated affect
   | { kind: "link";  url: string; title?: string }
   | { kind: "color"; hex: string }
   | { kind: "mood";  label: string }                      // e.g. "wistful"
-  | { kind: "track"; provider: "spotify";                 // music
-      uri: string; title: string; artist: string;
+  | { kind: "media";                                      // music/video share, any provider
+      provider: "spotify" | "qqmusic" | "youtube" | "applemusic" | "other";
+      uri: string; title: string; artist?: string;
       artworkBlobKey?: string;
+      place?: GeoTag;                                      // e.g. Belgium · Brugge
+      sourceTime?: number;                                // original share time
       lyrics?: { line: string; tMs?: number }[] };        // optional synced lyrics
+
+type GeoTag = { label: string; lat?: number; lon?: number };
 
 // The atom: a droplet (single fragment) OR a composite (many layers).
 type Droplet = {
@@ -289,15 +340,17 @@ type Droplet = {
   granularity: "droplet" | "composite";
   layers: Layer[];            // 1 for a droplet; many for a composite
   caption?: string;
+  episodeId?: string;         // burst this droplet belongs to (§3.6)
   // --- routing / blend signals ---
   hue: number;                // 0..360, dominant color
   saturation: number;         // 0..1
+  affect: Affect;             // valence/arousal/vulnerability → routing + weather
   tags: string[];             // user or auto ("calm", "rant", "food"…)
   vector?: number[];          // lightweight semantic vector for facet routing
   facetId?: string;           // pool it coalesced into (assigned by router)
   // --- lifecycle (drives surface vs. composted body) ---
   state: "fresh" | "settling" | "aggregated";
-  weight: number;             // visual size; default 1, decays with age
+  weight: number;             // visual size; from intensity + age decay
   // --- living/eternal-present signals (Pillar 2) ---
   createdAt: number;
   updatedAt: number;          // bumps on any edit; resurfaces the droplet
@@ -306,7 +359,17 @@ type Droplet = {
   pinnedPresent?: boolean;    // "this is me right now" — resists sinking
 };
 
+type Affect = { valence: number; arousal: number; vulnerability: number }; // each -1..1 / 0..1
+
 type Revision = { at: number; layers: Layer[]; caption?: string };
+
+// A burst grouped as one moment with an emotional arc (§3.6).
+type Episode = {
+  id: string; fieldId: string;
+  startedAt: number; endedAt: number;
+  dropletIds: string[];       // in order
+  arc: Affect[];              // affect trajectory across the burst
+};
 
 // A facet of self: a pool that droplets coalesce into.
 type Facet = {
@@ -466,10 +529,23 @@ With that rule fixed, compute a read-only feature vector `v` from the raw text
   rewriting), weighted by the user's *own* TF-IDF so words distinctive to *you*
   matter more. Cheap, model-free, and naturally elongation- and script-tolerant
   for *matching* — without ever altering what's stored.
-- **Sentiment / mood:** a small valence–arousal score (lexicon-based to start).
-- **Multilingual / mixed-script:** char n-grams are script-agnostic, so a bubble
+- **Affect (valence + arousal + vulnerability):** a small multi-axis score that
+  feeds both routing *and* the field's emotional weather (§2). It reads a wide
+  affect vocabulary, all kept verbatim and only *measured*:
+  - **Emoji & kaomoji:** `😳`, and ASCII/CJK emoticons like `TwT` (crying), `:)`,
+    `T_T`, `>_<` — a cross-cultural affect lexicon, not just Unicode emoji.
+  - **Roleplay / emote markers:** asterisk-wrapped stage directions like
+    `*震惊/诧异*` (*shocked/baffled*) are recognized as **self-narrated affect**
+    (an emote), tagged and rendered as a gesture, not as a literal topic.
+  - **Disfluency / stutter:** `h-h-Hi` reads as **nervousness/vulnerability** (low
+    arousal, tender), distinct from loud emphasis — never "corrected" to `Hi`.
+  - **Onomatopoeia:** `Tiktoktiktoktiktoktiktik` is treated as rhythmic/affective
+    sound, not a topic word.
+- **Multilingual & code-switching:** char n-grams are script-agnostic, so a bubble
   like `Belle好好看` (Latin + Chinese together) still produces a usable vector,
-  and emoji carry meaning across languages. A multilingual embedding model later
+  and emoji carry meaning across languages. **Which** language/script you choose
+  (English vs. 简体 vs. 繁體 `謝謝妳們` vs. Korean) is itself an identity/register
+  signal — preserved, never auto-translated. A multilingual embedding model later
   improves cross-language grouping; n-grams are the zero-dependency floor.
 - **Intensity from elongation/repetition (read, don't rewrite):** the *length* of
   an elongation (`itttt`), repeated emoji (`😚😚😚`), and ALL-CAPS are read as an
@@ -624,6 +700,35 @@ Belle's idol-appreciation + the 😚 affection tint), while *"Meow"* drifts to y
 pushed; nothing rewritten; every original bubble still readable verbatim when you
 zoom in (Pillar 2). The exact behavior the product exists to create.
 
+### 8.10 Worked example — a real emotional burst (Tess)
+
+A longer, harder burst — nervous arrival, a geo-tagged share, joy, grief, pain,
+and a hard boundary, across English + 简体 + 繁體 + Korean. **All one Episode**
+(§3.6); each line kept **verbatim**:
+
+| Bubbles (verbatim) | Read as | Lands |
+|--------------------|---------|-------|
+| `h-h-Hi it's me again` / `I'm back` / `Let's talk ASAP` / `Do you have the time?` | disfluency → nervous/tender; self-reference "again/back" → **identity**; eager | identity pool, low-arousal; opens the episode |
+| 🎵 *share* `ASAP – NewJeans` · Belgium·Brugge · QQMusic · 1h ago | `media` layer (provider **qqmusic**, `place`, `sourceTime`); anchor | **music pool** + a small **places** eddy (Brugge) |
+| `Tiktoktiktoktiktoktiktik` ×2 | onomatopoeia (echoes "the time?"); near-dup → **thicken, not stack** | one ticking accent on the music moment |
+| `哦 我似乎` / `突然好多朋友复活了` / 😳 | delight + surprise; high valence | warms the episode; a bright ripple |
+| `所以我说Asdan是极好的` | positive appraisal; entity `Asdan` (lexicon-teachable) | a topic/identity droplet |
+| `哦 好吧*震惊/诧异*` | `*震惊/诧异*` → **emote layer** (self-narrated affect), rendered as a gesture | emote on that droplet, not a topic |
+| `謝謝妳們!` (繁體, gendered 妳) | gratitude; **script choice = register/identity**, preserved | gratitude/identity, tender-bright |
+| `全部都是 2023 2024 2025 的朋友们…新人们爱的那个镜子已经不在了。` | wistful/grief; community reflection | a **wistful** facet; weather cools to foggy blue |
+| `好痛..感觉我连同我的边界被轰炸了一遍` / `我拒绝再次妥协我的边界。` | **pain + boundary**; high vulnerability, then resolve | a **storm** corner: deep reds, turbulent churn (§2) |
+| `要是你看我不爽，get the fuck out` | defiance; boundary aimed at viewers | storm peak — *and* a cue toward visibility controls (§9.1) |
+
+**On Twitter/QQ:** ~15 rapid messages — a wall of spam someone scrolls past, and
+the pain gets the same flat treatment as the K-pop share.
+**On AnyField:** **one honest episode.** A nervous arrival brightens into joy
+around the music+Brugge moment, cools into a wistful blue as the reflection lands,
+then darkens into a real storm at the boundary — a current you can *replay* as the
+emotional journey it actually was. Nothing prettified, nothing deleted, every word
+verbatim, and the storm stays **private unless Tess chooses to share it** (§9.1).
+This is the case that proves the field has to hold the whole person, not just the
+highlights.
+
 ---
 
 ## 9. Local-first now, sync later
@@ -641,6 +746,29 @@ zoom in (Pillar 2). The exact behavior the product exists to create.
 Because the renderer and composition engine only consume the local store, adding
 sync does **not** touch them — it's a new data source behind the same store API.
 
+### 9.1 Boundaries & control (the field is yours)
+
+*"我拒绝再次妥协我的边界 … get the fuck out."* Boundaries aren't an afterthought
+here — they're structural. Because AnyField is **pull, not push** (Pillar 1), the
+default posture already protects the user, and we make control explicit:
+
+- **Private by default.** A Field is yours and unshared until *you* publish a
+  view. Spamming freely is safe because no one is watching unless invited.
+- **Per-facet / per-episode visibility.** Share your music and food pools but keep
+  the stormy red corner private. Visibility is granular, not all-or-nothing — you
+  can vent on the same surface you show off, without exposing the venting.
+- **Tiered share links.** Public, unlisted, or per-person; revocable any time.
+  Visiting is always read-only and opt-in — no one can post *into* your field.
+- **"Get the fuck out" as a real control.** Block/remove a visitor instantly;
+  a removed viewer loses access immediately. Boundary-setting is a button, not a
+  plea.
+- **Care, not surveillance.** No engagement metrics shown to others, no “seen by”
+  pressure, no algorithmic redistribution of your hard moments. Difficult feeling
+  stays represented with dignity (§2) and under your control.
+
+> The product's job is to let someone express *everything* — delight and pain and
+> defiance — while never taking the boundary decision away from them.
+
 ---
 
 ## 10. Roadmap
@@ -653,13 +781,14 @@ sync does **not** touch them — it's a new data source behind the same store AP
 | **3** | Featurizer + online facet router (DP-means) + pool layout in a worker. | Chat bubbles → coherent facets (§8.2–8.4). |
 | **4** | Chat panel: text bubbles, rapid-fire send → animate into the field; batched ingest + IndexedDB; live re-layout under load. | Chat-familiar input; 20/min stays smooth (§3.2, §3.5). |
 | **5** | Continuous merge: near-duplicate coalescence + aggregation/LOD; old droplets compost into pool bodies. | "Merged, not spammy, originals kept" (§8.5–8.6). |
-| **6** | Composite composer (image + captions + mood) + color extraction. | "I feel this way today" set-pieces (Pillar 3). |
-| **7** | Music layers: Spotify link → embedded player + artwork; paste/import lyrics as glass text. | The "drop in Spotify + lyrics" loop. |
-| **8** | Eternal-present mechanics: edit (append-only `history`), re-surface/pin "now," age→fog without archiving. | Pillar 2 — the living portrait. |
-| **9** | Identity layer: facet labels/themes, search/zoom-to-facet, read-only share-view. | Observable-by-others portrait (§3.5). |
-| **10** | *(future)* Backend sync, accounts, Spotify Web API + licensed synced lyrics, visiting others' Fields. | Multi-user pull network. |
+| **6** | Affect + emotional weather: multi-axis affect (valence/arousal/vulnerability incl. kaomoji, emotes, disfluency) drives palette/motion calm↔storm. | The field is *honest* (§2, §8.2). |
+| **7** | Composite composer + media shares (Spotify/QQMusic/…): embedded player, artwork, place/time; paste/import lyrics as glass text. | "I feel this way today" + the share loop (Pillar 3). |
+| **8** | Episodes: group bursts, store the affect arc, replay a moment as a current through the field. | A burst is a moment, not scatter (§3.6). |
+| **9** | Eternal-present mechanics: edit (append-only `history`), re-surface/pin "now," age→fog without archiving. | Pillar 2 — the living portrait. |
+| **10** | Identity & boundaries: facet labels/themes, search/zoom-to-facet, per-facet visibility, tiered/revocable read-only share-views, block. | Observable *within your boundaries* (§3.7, §9.1). |
+| **11** | *(future)* Backend sync, accounts, Web APIs + licensed synced lyrics, visiting others' Fields. | Multi-user pull network. |
 
-MVP = Phases 0–9, all local.
+MVP = Phases 0–10, all local.
 
 ---
 
@@ -681,8 +810,13 @@ MVP = Phases 0–9, all local.
 5. **Spam guardrails for *self*** — at 20/min, do we want gentle de-duplication
    (near-identical droplets thicken one spot instead of multiplying)? Probably
    yes, as a routing nicety, not a limit. (Visual only — originals kept verbatim.)
-6. **Moderation/safety** once sharing exists (Phase 10): visiting is opt-in, no
-   push, report/block on share links.
+6. **Emotional weather & care** — how strongly should affect drive palette/motion
+   before it feels manipulative or performative? Should a storm ever *auto-suggest*
+   privacy ("keep this to yourself?"), and is that supportive or paternalistic?
+   The line: represent hard feeling honestly, never gamify it, never decide for
+   the user.
+7. **Moderation/safety** once sharing exists (Phase 11): visiting is opt-in, no
+   push, report/block on share links; per-facet visibility is the primary control.
 
 ---
 

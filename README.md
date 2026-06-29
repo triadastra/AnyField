@@ -35,7 +35,17 @@ facet, not by time — that others can *visit* and read at a glance.
 Turning a fast chat stream into a coherent painting is a **classification +
 continuous-merge** problem: online clustering routes each message to a facet,
 near-duplicates *thicken* a region instead of stacking as spam, and **no original
-message is ever suppressed or deleted**. See §3 and §8 of the design.
+message is ever modified, suppressed, or deleted** — `itttt` stays `itttt`,
+because the elongation *is* the meaning. See §3 and §8 of the design.
+
+## Honest, and yours
+
+The field shows the **whole** person, not just the highlights: it has
+**emotional weather** — calm drift *and* turbulent storm — so delight, grief,
+pain, and defiance are all represented with dignity rather than prettified away.
+And it's **private by default** with granular **boundaries** (per-facet
+visibility, revocable share links, block) — express everything; share only what
+you choose.
 
 ### What it isn't
 - ❌ Not a feed. No push, no notifications-at-others, no mass-messaging.

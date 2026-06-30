@@ -4,59 +4,59 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="theme-color" content="#06070d" />
+<meta name="theme-color" content="#e9e9e6" />
 <title>AnyField — furry glass</title>
 <style>
   :root{ --safe-b: env(safe-area-inset-bottom, 0px); --safe-t: env(safe-area-inset-top, 0px); }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body{ margin:0; height:100%; overflow:hidden; background:#06070d;
+  html,body{ margin:0; height:100%; overflow:hidden; background:#e9e9e6;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
-    color:#f2f4fb; -webkit-font-smoothing:antialiased; overscroll-behavior:none; touch-action:none; }
+    color:#1b1d24; -webkit-font-smoothing:antialiased; overscroll-behavior:none; touch-action:none; }
   #gfx{ position:fixed; inset:0; width:100%; height:100%; display:block; }
   #labels{ position:fixed; inset:0; pointer-events:none; overflow:hidden; }
 
   .lbl{ position:absolute; transform:translate(-50%,-50%);
     text-align:center; white-space:pre-wrap; word-break:break-word;
-    font-size:12px; line-height:1.2; font-weight:600; color:#fff;
-    text-shadow:0 1px 6px rgba(0,0,0,.55), 0 0 2px rgba(0,0,0,.4);
+    font-size:12px; line-height:1.2; font-weight:600; color:#1b1d24;
+    text-shadow:0 1px 2px rgba(255,255,255,.65), 0 0 1px rgba(255,255,255,.5);
     pointer-events:none; }
-  .lbl.emote{ font-style:italic; font-weight:500; opacity:.9; }
+  .lbl.emote{ font-style:italic; font-weight:500; opacity:.85; }
 
   /* top chrome */
   #brand{ position:fixed; top:calc(var(--safe-t) + 10px); left:14px; z-index:5;
-    font-weight:800; font-size:15px; letter-spacing:.05em; opacity:.9;
-    text-shadow:0 1px 8px rgba(0,0,0,.6); }
-  #brand b{ color:#bfe0ff; }
+    font-weight:800; font-size:15px; letter-spacing:.05em; color:#2a2d36; opacity:.92;
+    text-shadow:0 1px 3px rgba(255,255,255,.6); }
+  #brand b{ color:#2b6cb0; }
   #badge{ position:fixed; top:calc(var(--safe-t) + 12px); right:14px; z-index:5;
-    font-size:10px; opacity:.5; transition:opacity 1s; }
+    color:#5a5d66; font-size:10px; opacity:.6; transition:opacity 1s; }
 
   /* the glass chat bubble dock */
   #dock{ position:fixed; left:10px; right:10px; bottom:calc(var(--safe-b) + 10px); z-index:9; }
   #bar{ display:flex; align-items:flex-end; gap:8px; padding:7px 8px;
     border-radius:26px;
-    background:rgba(255,255,255,.10);
+    background:rgba(255,255,255,.42);
     backdrop-filter:blur(18px) saturate(1.4); -webkit-backdrop-filter:blur(18px) saturate(1.4);
-    border:1px solid rgba(255,255,255,.22);
-    box-shadow:0 10px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.35),
-               inset 0 -8px 22px rgba(120,160,255,.06); }
+    border:1px solid rgba(255,255,255,.7);
+    box-shadow:0 12px 36px rgba(40,44,60,.18), inset 0 1px 0 rgba(255,255,255,.8),
+               inset 0 -8px 22px rgba(120,140,180,.06); }
   .rbtn{ flex:0 0 auto; width:40px; height:40px; border-radius:50%; border:0;
     font-size:20px; font-weight:600; display:flex; align-items:center; justify-content:center;
-    background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.25); }
+    background:rgba(255,255,255,.6); color:#2a2d36; border:1px solid rgba(0,0,0,.10); }
   .rbtn:active{ transform:scale(.92); }
   #msg{ flex:1; resize:none; max-height:104px; min-height:40px; height:40px;
-    font-size:16px; line-height:1.35; padding:9px 6px; border:0; outline:0; background:transparent; color:#fff; }
-  #msg::placeholder{ color:rgba(255,255,255,.5); }
+    font-size:16px; line-height:1.35; padding:9px 6px; border:0; outline:0; background:transparent; color:#1b1d24; }
+  #msg::placeholder{ color:rgba(40,44,60,.42); }
   #send{ background:linear-gradient(135deg,#cfe6ff,#7fb0ff); color:#082038;
     box-shadow:0 4px 14px rgba(110,160,255,.5); }
 
   #hint{ position:fixed; left:50%; top:42%; transform:translate(-50%,-50%);
-    width:78%; max-width:300px; text-align:center; opacity:.5; font-size:13px; line-height:1.6;
-    pointer-events:none; transition:opacity .7s; text-shadow:0 1px 8px rgba(0,0,0,.6); }
+    width:78%; max-width:300px; text-align:center; color:#4a4d57; opacity:.7; font-size:13px; line-height:1.6;
+    pointer-events:none; transition:opacity .7s; text-shadow:0 1px 3px rgba(255,255,255,.6); }
   #chips{ position:fixed; left:0; right:0; bottom:calc(var(--safe-b) + 68px); z-index:8;
     display:flex; gap:7px; overflow-x:auto; padding:0 10px 8px; scrollbar-width:none; }
   #chips::-webkit-scrollbar{ display:none; }
-  .chip{ flex:0 0 auto; font-size:12px; padding:7px 12px; border-radius:999px; color:#eef2ff;
-    background:rgba(255,255,255,.09); border:1px solid rgba(255,255,255,.16);
+  .chip{ flex:0 0 auto; font-size:12px; padding:7px 12px; border-radius:999px; color:#2a2d36;
+    background:rgba(255,255,255,.55); border:1px solid rgba(0,0,0,.1);
     backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); white-space:nowrap; }
 </style>
 </head>
@@ -180,14 +180,21 @@ fn vn(p:vec2<f32>)->f32{ let i=floor(p); let f=fract(p); let u=f*f*(3.-2.*f);
   return mix(mix(h21(i),h21(i+vec2(1.,0.)),u.x),mix(h21(i+vec2(0.,1.)),h21(i+vec2(1.,1.)),u.x),u.y); }
 fn gss(uv:vec2<f32>,c:vec2<f32>,s:f32)->f32{ let d=uv-c; return exp(-dot(d,d)/(2.*s*s)); }
 
-// the ambient field BEHIND the glass — this is what gets refracted/tinted
+// the surface BEHIND the glass — granite white. Its fine mineral speckle is
+// what makes the refraction read as glass.
 fn bg(px:vec2<f32>)->vec3<f32>{
-  let uv=px/u.res; let t=u.time*0.08;
-  var c=vec3(0.045,0.055,0.10);
-  c+=vec3(0.95,0.45,0.65)*gss(uv,vec2(0.30+0.10*sin(t),0.32+0.10*cos(t*0.8)),0.26)*0.9;
-  c+=vec3(0.35,0.62,1.00)*gss(uv,vec2(0.74+0.10*cos(t*0.7),0.40+0.10*sin(t)),0.30)*0.9;
-  c+=vec3(0.55,0.95,0.75)*gss(uv,vec2(0.50+0.10*sin(t*1.3),0.74+0.10*cos(t)),0.24)*0.8;
-  return c;
+  let p=px;
+  // soft cloudy mottling (fbm)
+  let mottle = vn(p*0.016)*0.55 + vn(p*0.055)*0.28 + vn(p*0.14)*0.17;
+  var base = mix(0.80, 0.985, mottle);
+  base += (vn(p*0.9)-0.5)*0.10;                 // mid grain
+  var col=vec3(base);
+  // sparse mineral flecks (grey, black, faint warm/cool)
+  if(h21(floor(p*0.7))      > 0.945){ col -= vec3(0.30); }
+  if(h21(floor(p*1.7)+19.)  > 0.978){ col -= vec3(0.46); }
+  if(h21(floor(p*0.5)+7.)   > 0.960){ col += vec3(0.06,0.03,0.0); }
+  if(h21(floor(p*0.95)+33.) > 0.965){ col -= vec3(0.0,0.02,0.05); }
+  return clamp(col,vec3(0.0),vec3(1.0));
 }
 
 @fragment fn fs(@builtin(position) fc:vec4<f32>)->@location(0) vec4<f32>{
@@ -226,12 +233,12 @@ fn bg(px:vec2<f32>)->vec3<f32>{
     glass+=vec3(1.0)*smoothstep(r*0.55,0.0,length(p-lp))*0.45;
     glass+=it.c.rgb*it.c.a*0.25;                              // freshness glow
 
-    let furCol=mix(it.c.rgb, vec3(1.0), 0.35);
+    let furCol=mix(it.c.rgb, vec3(1.0), 0.12);   // keep the color so fur reads on white stone
     col=mix(col, glass, core);
-    col=mix(col, furCol, fringe*0.8);
+    col=mix(col, furCol, fringe*0.85);
   }
-  let q=px/u.res-0.5; col*=1.0-dot(q,q)*0.5;                  // vignette
-  return vec4(pow(clamp(col,vec3(0.),vec3(1.)),vec3(0.92)),1.0);
+  let q=px/u.res-0.5; col*=1.0-dot(q,q)*0.16;                 // soft vignette
+  return vec4(pow(clamp(col,vec3(0.),vec3(1.)),vec3(0.96)),1.0);
 }
 `;
 
@@ -258,16 +265,25 @@ function drawGPU(time){
   device.queue.writeBuffer(uBuf,0,uArr); device.queue.writeBuffer(iBuf,0,iArr);
   const e=device.createCommandEncoder();
   const p=e.beginRenderPass({colorAttachments:[{view:ctx.getCurrentTexture().createView(),
-    clearValue:{r:0.02,g:0.03,b:0.06,a:1},loadOp:'clear',storeOp:'store'}]});
+    clearValue:{r:0.91,g:0.91,b:0.90,a:1},loadOp:'clear',storeOp:'store'}]});
   p.setPipeline(pipe); p.setBindGroup(0,bind); p.draw(3); p.end();
   device.queue.submit([e.finish()]);
 }
 
-/* Canvas2D fallback: blurred radial glass + a fuzzy fur ring */
+/* a cached granite-white speckle surface for the Canvas2D fallback */
+let granite=null;
+function makeGranite(w,h){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d');
+  const grd=g.createLinearGradient(0,0,0,h); grd.addColorStop(0,'#f2f2ef'); grd.addColorStop(1,'#e4e4e0');
+  g.fillStyle=grd; g.fillRect(0,0,w,h);
+  for(let i=0;i<w*h/90;i++){ const x=Math.random()*w,y=Math.random()*h,r=Math.random()*1.6;
+    const v=Math.random(); g.fillStyle = v>0.7?`rgba(60,60,64,${0.18+Math.random()*0.25})`
+      : v>0.4?`rgba(150,150,150,0.18)` : `rgba(255,255,255,0.22)`;
+    g.beginPath(); g.arc(x,y,r,0,7); g.fill(); }
+  return c; }
 function drawCanvas(time){
   if(!c2d) c2d=gfx.getContext('2d'); const w=gfx.width,h=gfx.height;
-  const bg=c2d.createLinearGradient(0,0,0,h); bg.addColorStop(0,'#141a2e'); bg.addColorStop(1,'#06070d');
-  c2d.fillStyle=bg; c2d.fillRect(0,0,w,h);
+  if(!granite || granite.width!==w || granite.height!==h) granite=makeGranite(w,h);
+  c2d.drawImage(granite,0,0);
   for(const it of ITEMS.slice(-MAXI)){ const [r,g,b]=hsl2rgb(it.hue,it.sat,0.6).map(v=>(v*255)|0);
     // fur ring
     c2d.save(); c2d.translate(it.x,it.y);

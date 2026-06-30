@@ -163,20 +163,28 @@ const MAXI=64; let mode='2d';
 let device,ctx,fmt,pipe,bind,uBuf,iBuf,uArr,iArr,c2d;
 
 async function initGPU(){
-  if(!navigator.gpu) return false;
-  let ad; try{ ad=await navigator.gpu.requestAdapter(); }catch(e){ return false; } if(!ad) return false;
-  try{ device=await ad.requestDevice(); }catch(e){ return false; }
-  ctx=gfx.getContext('webgpu'); if(!ctx) return false;
-  fmt=navigator.gpu.getPreferredCanvasFormat(); ctx.configure({device,format:fmt,alphaMode:'opaque'});
-  const m=device.createShaderModule({code:WGSL});
-  pipe=device.createRenderPipeline({layout:'auto',vertex:{module:m,entryPoint:'vs'},
-    fragment:{module:m,entryPoint:'fs',targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
-  uArr=new Float32Array(4); iArr=new Float32Array(MAXI*8);
-  uBuf=device.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
-  iBuf=device.createBuffer({size:iArr.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
-  bind=device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:[
-    {binding:0,resource:{buffer:uBuf}},{binding:1,resource:{buffer:iBuf}}]});
-  return true;
+  try{
+    if(!navigator.gpu) return false;
+    const ad=await navigator.gpu.requestAdapter(); if(!ad) return false;
+    device=await ad.requestDevice();
+    device.lost.then(()=>{ mode='2d'; }).catch(()=>{});
+    fmt=navigator.gpu.getPreferredCanvasFormat();
+    // compile + build the pipeline BEFORE claiming the canvas, so a shader
+    // failure can still cleanly fall back to the Canvas2D path.
+    const m=device.createShaderModule({code:WGSL});
+    if(m.getCompilationInfo){ const info=await m.getCompilationInfo();
+      if(info.messages.some(x=>x.type==='error')){ console.warn('WGSL compile errors:',info.messages); return false; } }
+    pipe=await device.createRenderPipelineAsync({layout:'auto',vertex:{module:m,entryPoint:'vs'},
+      fragment:{module:m,entryPoint:'fs',targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
+    ctx=gfx.getContext('webgpu'); if(!ctx) return false;   // claims the canvas (only now that we know GPU works)
+    ctx.configure({device,format:fmt,alphaMode:'opaque'});
+    uArr=new Float32Array(4); iArr=new Float32Array(MAXI*8);
+    uBuf=device.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+    iBuf=device.createBuffer({size:iArr.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+    bind=device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:[
+      {binding:0,resource:{buffer:uBuf}},{binding:1,resource:{buffer:iBuf}}]});
+    return true;
+  }catch(e){ console.warn('WebGPU init failed, using Canvas2D:', e&&e.message); return false; }
 }
 
 const WGSL=`
@@ -282,7 +290,8 @@ let t0=performance.now();
 function frame(){
   const now=performance.now(), time=(now-t0)/1000;
   physics();
-  if(mode==='gpu') drawGPU(time); else drawCanvas(time);
+  try{ if(mode==='gpu') drawGPU(time); else drawCanvas(time); }
+  catch(e){ /* never let a render error kill the loop — labels still draw */ }
   drawLabels(now);
   requestAnimationFrame(frame);
 }
@@ -365,9 +374,10 @@ for(const c of CHIPS){ const b=document.createElement('button'); b.className='ch
 /* ---- boot ---- */
 (async function(){
   resize(); addEventListener('resize',resize); addEventListener('orientationchange',()=>setTimeout(resize,250));
-  const ok=await initGPU(); mode=ok?'gpu':'2d';
+  let ok=false; try{ ok=await initGPU(); }catch(e){ ok=false; }
+  mode=ok?'gpu':'2d';
   badge.textContent=ok?'WebGPU ✓':'Canvas2D'; setTimeout(()=>badge.style.opacity='0',3000);
-  requestAnimationFrame(frame);
+  requestAnimationFrame(frame);                 // ALWAYS start the loop, GPU or not
 })();
 </script>
 </body>

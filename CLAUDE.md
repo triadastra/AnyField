@@ -4,18 +4,23 @@ Guidance for AI assistants working in this repository.
 
 ## What this repo is (read this first)
 
-**AnyField is in the _design phase_. There is no application code yet.** The
-repo currently contains only design documentation:
+**AnyField is still mostly in the _design phase_.** The canonical artifact is
+the design doc; there is an early **visual prototype** of the field, but the
+full system (composition engine, persistence, episodes, weather) is **not built
+yet**.
 
 ```
 README.md          # the pitch — concept, three pillars, what it is/isn't
 docs/DESIGN.md     # the full design document (the source of truth)
+prototype/         # index.html — a single-file WebGPU sketch of the UI/UX
+app/               # Vite + React + TS + WebGPU app (Dockerized) of the field
 ```
 
-Everything below describes a system that is **planned, not built**. Source
-directories like `src/`, package manifests, build configs, and tests **do not
-exist yet**. Do not assume any code, dependency, or tooling is present —
-verify with the filesystem before referencing it.
+Most of `docs/DESIGN.md` describes a system that is **planned, not built** —
+the worker-based facet router (§8), IndexedDB persistence (§9), episodes (§3.6),
+and emotional weather (§2) are **not implemented**. `app/` currently renders the
+Liquid-Glass field and the float-up/stick interaction only. Do not assume a
+module, dependency, or tool exists — verify with the filesystem first.
 
 Treat `docs/DESIGN.md` as the **canonical spec**. The README is a summary of
 it. When the two ever disagree, the design doc wins, and you should flag the
@@ -164,10 +169,19 @@ sync / commons ("the Square & the Abouts", DESIGN §12 — vision, not MVP).
   `§`-section cross-references and the established vocabulary above). Keep the
   README a faithful summary of the design doc; if you change a decision, update
   both and any affected `§` cross-references.
-- **No build/test/lint commands exist yet** — there is no `package.json`. Do
-  not invent or run them. If you scaffold the app, follow DESIGN §5 (Vite + TS +
-  Vitest/Playwright) and the directory layout above, and add the real commands
-  to this file at that point.
+- **Build/run commands live in `app/`** (the only `package.json`). From `app/`:
+  `npm install`, then `npm run dev` (Vite dev server), `npm run build`
+  (type-check + bundle to `dist/`), `npm run preview` (serve the build). Docker:
+  `docker compose up --build` (serves the static bundle via nginx on `:8080`).
+  The repo root and `docs/`/`prototype/` have **no** build tooling — don't invent
+  commands there. The app diverges from DESIGN §5 in one way: it uses **React**
+  for the overlay (DESIGN suggested plain DOM/Lit) and does not yet have the Web
+  Worker / IndexedDB / Vitest+Playwright layers — add those per DESIGN as the app
+  grows, and update this file when you do.
+- **WebGPU needs a secure context.** It works on `localhost` and HTTPS; over a
+  plain-`http` LAN IP the browser disables it and the app uses the Canvas2D
+  fallback. The renderer compiles the shader and builds the pipeline *before*
+  claiming the canvas, so a WebGPU/shader failure degrades cleanly to Canvas2D.
 - **When you add code,** mirror the data model (§6) and module boundaries (§4,
   appendix) from the design rather than improvising a new structure, and keep
   the non-negotiable conventions above true in code (especially verbatim text

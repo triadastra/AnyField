@@ -1,0 +1,35 @@
+name: Deploy to Cloud Run
+
+# Optional CI auto-deploy to Google Cloud Run.
+# DISABLED until you add the GCP secrets and flip the `if:` guard below.
+# See deploy/README.md for the one-time GCP setup (service account + secrets).
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Flip to `true` after adding GCP_SA_KEY + GCP_PROJECT repo secrets.
+    if: ${{ false }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy
+        run: |
+          gcloud run deploy anyfield \
+            --source app \
+            --region us-central1 \
+            --port 80 \
+            --allow-unauthenticated \
+            --quiet \
+            --project "${{ secrets.GCP_PROJECT }}"

@@ -30,7 +30,7 @@ export default function App() {
           <div className="hint-card">
             <div className="hint-title">This is your field.</div>
             <div className="hint-sub">
-              Send anything. Each fragment drifts to a <b>facet of you</b> — and the whole thing reads as one glass painting.
+              Send anything — it floats up as <b>glass</b> and the stream scrolls on. Songs become cover-blocks; related posts link together.
             </div>
           </div>
         </div>

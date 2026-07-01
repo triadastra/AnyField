@@ -30,12 +30,16 @@ src/
     Chips.tsx           # tap-to-send examples
 ```
 
+**Layout** is a right-aligned **rising glass chat** (WeChat-like): posts hug the
+right edge with an avatar, new ones float up from the dock and the column scrolls
+upward, songs render as glass **cover-blocks** with the title/artist attached.
+
 **Composition** (`src/compose/`): each sent message is featurized (hue, affect,
 topic, tokens) read-only, then routed to the nearest **facet** by combined
-similarity — join an existing pool, or spawn a new one. Facet centroids drift
-(EMA), near-duplicates **thicken** a droplet (×N) instead of stacking, older
-droplets **compost** into the pool body, and recent affect drives a light
-emotional-weather tint. Text is always stored and shown **verbatim**.
+similarity (join or spawn; centroids drift via EMA). The facet drives each post's
+**tint**, and consecutive same-facet posts **link** together. Recent affect
+drives a light emotional-weather tint. Text is always stored and shown
+**verbatim**.
 
 **Rendering** is WebGPU-first with a **Canvas2D fallback**: the shader is
 compiled and the pipeline built *before* the canvas is claimed, so if WebGPU is

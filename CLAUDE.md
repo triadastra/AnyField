@@ -19,11 +19,13 @@ app/               # Vite + React + TS + WebGPU app (Dockerized) of the field
 Most of `docs/DESIGN.md` describes a system that is **planned, not built** —
 IndexedDB persistence (§9) and episodes (§3.6) are **not implemented**, and the
 composition engine runs on the **main thread**, not yet in a Web Worker (§4).
-`app/` renders the Liquid-Glass field and now includes an early **composition
-engine** (`src/compose/`): online facet routing (§8), pools that grow/compost,
-near-duplicate thickening, emergent labels, and a light emotional-weather tint
-(§2). Do not assume a module, dependency, or tool exists — verify with the
-filesystem first.
+`app/` renders a **right-aligned rising glass chat** (WeChat-like): each post is
+featurized + routed to a facet (`src/compose/`, §8) for tint/linking, then laid
+out as a liquid-glass bubble hugging the right edge, with an avatar, songs as
+glass cover-blocks, and a light emotional-weather tint (§2). New posts float up
+from the dock and the column scrolls upward. (An earlier pool/painting layout
+was replaced by this stream at the owner's request.) Do not assume a module,
+dependency, or tool exists — verify with the filesystem first.
 
 Treat `docs/DESIGN.md` as the **canonical spec**. The README is a summary of
 it. When the two ever disagree, the design doc wins, and you should flag the

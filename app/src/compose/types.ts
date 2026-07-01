@@ -34,6 +34,25 @@ export type Droplet = {
   state: 'fresh' | 'aggregated'
 }
 
+// A post in the right-aligned chat stream (WeChat-like), rendered as glass.
+export type Post = {
+  id: number
+  kind: 'text' | 'song'
+  text: string
+  title?: string
+  artist?: string
+  hue: number
+  sat: number
+  facetId: string
+  w: number
+  h: number
+  x: number
+  y: number
+  ty: number // target center-y (stack position)
+  born: number
+  connectPrev: boolean // same facet as the post below it → linked
+}
+
 // A facet of self: a pool droplets coalesce into (§3.3). Emergent, labeled,
 // with a drifting centroid (here: topic mix + hue EMA + token set).
 export type Facet = {

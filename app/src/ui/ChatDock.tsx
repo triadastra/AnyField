@@ -2,8 +2,9 @@ import { useRef, useState } from 'react'
 
 type Props = { onSend: (text: string) => void }
 
-const ATTACH = [
-  { icon: '🎵', label: 'Music', text: '🎵 a song' },
+type Attach = { icon: string; label: string; text?: string; fill?: string }
+const ATTACH: Attach[] = [
+  { icon: '🎵', label: 'Music', fill: '🎵 ' }, // prefill: type "🎵 Title — Artist" or paste a Spotify link
   { icon: '📷', label: 'Photo', text: '📷 a photo' },
   { icon: '🎨', label: 'Color', text: '🎨 a color' },
   { icon: '☁️', label: 'Mood', text: '☁️ wistful' },
@@ -22,9 +23,12 @@ export function ChatDock({ onSend }: Props) {
     setV('')
     if (taRef.current) taRef.current.style.height = '40px'
   }
-  const quick = (t: string) => {
-    onSend(t)
+  const pick = (a: Attach) => {
     setMenu(false)
+    if (a.fill) {
+      setV(a.fill)
+      taRef.current?.focus()
+    } else if (a.text) onSend(a.text)
   }
 
   return (
@@ -32,7 +36,7 @@ export function ChatDock({ onSend }: Props) {
       {menu && (
         <div className="attach">
           {ATTACH.map((a) => (
-            <button key={a.label} onClick={() => quick(a.text)}>
+            <button key={a.label} onClick={() => pick(a)}>
               <span className="ai">{a.icon}</span>
               <span className="al">{a.label}</span>
             </button>
@@ -65,7 +69,7 @@ export function ChatDock({ onSend }: Props) {
           }}
         />
         <button className={'rbtn send' + (canSend ? '' : ' off')} aria-label="send" onClick={submit}>
-          ➤
+          →
         </button>
       </div>
     </div>

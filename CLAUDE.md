@@ -17,15 +17,38 @@ app/               # Vite + React + TS + WebGPU app (Dockerized) of the field
 ```
 
 Most of `docs/DESIGN.md` describes a system that is **planned, not built** —
-IndexedDB persistence (§9) and episodes (§3.6) are **not implemented**, and the
-composition engine runs on the **main thread**, not yet in a Web Worker (§4).
-`app/` renders a **right-aligned rising glass chat** (WeChat-like): each post is
-featurized + routed to a facet (`src/compose/`, §8) for tint/linking, then laid
-out as a liquid-glass bubble hugging the right edge, with an avatar, songs as
-glass cover-blocks, and a light emotional-weather tint (§2). New posts float up
-from the dock and the column scrolls upward. (An earlier pool/painting layout
-was replaced by this stream at the owner's request.) Do not assume a module,
-dependency, or tool exists — verify with the filesystem first.
+episodes (§3.6) are **not implemented**, and the composition engine runs on the
+**main thread**, not yet in a Web Worker (§4). IndexedDB persistence (§9) **is
+implemented** (`app/src/store/db.ts`, via `idb`): posts (verbatim), facet
+centroids, and the weather EMA survive reload; post ids are ULIDs (via `ulid`);
+writes are fire-and-forget puts — nothing is ever deleted.
+`app/` renders a **rising glass collage** (DESIGN §7.1): each post is
+featurized + routed to a facet (`src/compose/`, §8) for tint/clustering, then
+typeset across the **full width** — consecutive related posts (same facet, or a
+rapid burst) form a cluster whose follow-ups float right of their anchor, wrap,
+and justify like a paragraph of glass. Risen glass **recedes into the
+backdrop** (flattens, frosts, defocuses) so the upper field reads as a painted
+background while the dock edge stays crisp. Songs are glass cover-blocks; a
+light emotional-weather tint (§2) washes the scene; a 🕒 header toggle shows
+relative + absolute timestamps; a profile/settings sheet (avatar, handle, field
+title, glass toggles) persists with everything else in IndexedDB. Drag/wheel
+scrolls back through history. (Earlier pool/painting and left-column-chat
+layouts were replaced by this collage at the owner's request.) Do not assume a
+module, dependency, or tool exists — verify with the filesystem first.
+
+The composer's `+` attach menu (`ChatDock.tsx`) is currently **fake placeholder
+buttons** (they insert canned text, not real media). The real design —
+an extensible `AttachmentSource` class per `Layer` kind (photo, color, music,
+link, ...), each pulling real content from the OS or another app — is
+specified in DESIGN §6 ("Attachment sources — the `+` menu"). Not built yet;
+implement against that spec rather than improvising new attachment plumbing.
+
+**Reply and emoji-reaction buttons don't exist yet either.** They require the
+real backend (accounts, `Reply`, `Reaction`) specified in DESIGN §9.2 — build
+against that spec (Cloud Run API + Cloud SQL + Drizzle + Auth.js), not a
+client-only simulation. Step 5 of §9.2's build order (actually provisioning
+Cloud SQL / a second Cloud Run service) is real ongoing cost — get explicit
+owner sign-off before running it, same as any other billable cloud action.
 
 Treat `docs/DESIGN.md` as the **canonical spec**. The README is a summary of
 it. When the two ever disagree, the design doc wins, and you should flag the
@@ -74,10 +97,18 @@ droplets stay legible. Visitors *pull* (visit) a Field; nothing is pushed.
   strong storm, offer a single **dismissible** "keep this to yourself?" nudge —
   a *suggestion only*, never automatic, never nagging, never a value judgment.
   (DESIGN §9.1, §2.)
-- **Local-first.** The MVP runs with **no server**; all data lives in
-  IndexedDB. A sync/multi-user backend is an *additive* later phase that sits
-  behind the same store API and does not touch the renderer or composition
-  engine. (DESIGN §9.)
+- **Local-first, for the owner's own droplets.** IndexedDB remains the local
+  cache/offline buffer; the renderer/composition engine only ever consume the
+  local store, never touching HTTP/auth directly. (DESIGN §9.) **Revised
+  2026-07-02:** a real backend (Cloud Run API + Cloud SQL Postgres + Auth.js)
+  is now being built, ahead of the original Phase 11 timeline, specifically to
+  support real accounts and replies — see the next bullet and DESIGN §9.2.
+- **Replies are the one narrow exception to "no one can post into your
+  field."** A reply is bounded to a single droplet, off by default
+  (`replyPolicy: "owner-only"`), and never joins the owner's own facet
+  routing (§8) — it's a visitor's voice attached to a moment, not part of the
+  owner's self-portrait. Emoji reactions are the real-button version of the
+  existing "affect-only bubble" mechanic (§8.3). (DESIGN §9.1, §9.2.)
 
 ## Core concepts / vocabulary
 
@@ -181,8 +212,10 @@ sync / commons ("the Square & the Abouts", DESIGN §12 — vision, not MVP).
   The repo root and `docs/`/`prototype/` have **no** build tooling — don't invent
   commands there. The app diverges from DESIGN §5 in one way: it uses **React**
   for the overlay (DESIGN suggested plain DOM/Lit) and does not yet have the Web
-  Worker / IndexedDB / Vitest+Playwright layers — add those per DESIGN as the app
-  grows, and update this file when you do.
+  Worker / Vitest+Playwright layers — add those per DESIGN as the app grows, and
+  update this file when you do. The IndexedDB layer (`src/store/db.ts`) is in:
+  the Engine is its only consumer (restore in `init()`, fire-and-forget puts on
+  spawn) — keep it that way so sync later is a new data source, not a rewrite.
 - **WebGPU needs a secure context.** It works on `localhost` and HTTPS; over a
   plain-`http` LAN IP the browser disables it and the app uses the Canvas2D
   fallback. The renderer compiles the shader and builds the pipeline *before*

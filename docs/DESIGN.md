@@ -439,6 +439,94 @@ player (no auth) and lets users paste lyrics or import an `.lrc` file; a later
 phase uses the Spotify Web API + a licensed lyrics provider for true synced
 playback. Lyrics render *as glass text* and can drive the liquid motion.
 
+### Attachment sources — the `+` menu (pull-from-apps)
+
+The chat panel's `+` button is **not** four hardcoded actions — it is a small,
+open-ended registry of **attachment sources**, one class per `Layer` kind
+(above). Each source's only job is to pull one real `Layer` from the OS or
+another app, or return `null` on cancel. Adding a new kind later means adding
+one class, not touching the menu component.
+
+```ts
+// src/media/attachments.ts (planned)
+
+// One entry in the `+` menu. Generic over the Layer kind it produces so
+// capture() is fully typed end to end.
+abstract class AttachmentSource<L extends Layer = Layer> {
+  abstract readonly id: string;       // stable key, e.g. "photo"
+  abstract readonly icon: string;     // menu glyph
+  abstract readonly label: string;    // menu label
+  abstract readonly kind: L["kind"];  // the Layer kind this produces
+
+  // Feature-detect — hide the menu item where the browser can't do this
+  // (mirrors the WebGPU → Canvas2D fallback philosophy in §7).
+  abstract isAvailable(): boolean;
+
+  // Hand off to the OS/another app's own picker. Resolves null on user
+  // cancel; only rejects on a genuine error. Never blocks the composer.
+  abstract capture(): Promise<L | null>;
+}
+
+// image — the OS's own Photos/Files/Camera chooser
+class PhotoAttachmentSource extends AttachmentSource<Extract<Layer, { kind: "image" }>> {
+  readonly id = "photo"; readonly icon = "📷"; readonly label = "Photo"; readonly kind = "image" as const;
+  isAvailable() { return true; }
+  async capture() {
+    const file = await pickFile("image/*");   // hidden <input type=file capture=environment>
+    if (!file) return null;
+    return { kind: "image", blobKey: await storeBlob(file), alt: file.name };
+  }
+}
+
+// color — literally sampled from any other window/app on screen
+class ColorAttachmentSource extends AttachmentSource<Extract<Layer, { kind: "color" }>> {
+  readonly id = "color"; readonly icon = "🎨"; readonly label = "Color"; readonly kind = "color" as const;
+  isAvailable() { return true; }            // EyeDropper API -> <input type=color> fallback
+  async capture() {
+    const hex = "EyeDropper" in window ? await pickWithEyeDropper() : await pickWithColorInput();
+    return hex ? { kind: "color", hex } : null;
+  }
+}
+
+// media (spotify) — detects a track link already copied from the Spotify app
+class MusicAttachmentSource extends AttachmentSource<Extract<Layer, { kind: "media" }>> {
+  readonly id = "music"; readonly icon = "🎵"; readonly label = "Music"; readonly kind = "media" as const;
+  isAvailable() { return true; }
+  async capture() {
+    const url = (await tryReadClipboardSpotifyLink()) ?? (await promptForTrackOrText());
+    if (!url) return null;
+    const meta = await resolveSong(url);      // existing src/media/music.ts
+    return { kind: "media", provider: "spotify", uri: url, title: meta.title ?? "…", artist: meta.artist, artworkBlobKey: meta.cover };
+  }
+}
+
+// link — any URL, from a copied link or a paste
+class LinkAttachmentSource extends AttachmentSource<Extract<Layer, { kind: "link" }>> {
+  readonly id = "link"; readonly icon = "🔗"; readonly label = "Link"; readonly kind = "link" as const;
+  isAvailable() { return true; }
+  async capture() {
+    const url = (await tryReadClipboardUrl()) ?? (await promptForUrl());
+    return url ? { kind: "link", url } : null;
+  }
+}
+
+// The `+` menu renders this list generically — no per-button branching.
+// Future sources (voice note → media, sketch → image, place → GeoTag on a
+// media/image layer) slot in the same way; documented here, not yet built.
+const ATTACHMENT_SOURCES: AttachmentSource[] = [
+  new PhotoAttachmentSource(),
+  new ColorAttachmentSource(),
+  new MusicAttachmentSource(),
+  new LinkAttachmentSource(),
+].filter((a) => a.isAvailable());
+```
+
+**Interim tradeoff:** `storeBlob()` holds a file as an in-memory object URL
+today, since IndexedDB persistence (§9) isn't built yet — it becomes a real
+blob-key write once that lands, with no change to `AttachmentSource` itself.
+`mood` deliberately stays a plain in-app chip picker (§3.2), not an
+attachment source — it's self-authored, not pulled from anywhere.
+
 ---
 
 ## 7. The liquid-blend renderer
@@ -497,6 +585,33 @@ painting). One uniform (`blendStrength = f(zoom)`) drives this.
   fixed full-screen passes.
 - Off-screen / far-zoom droplets cull or drop to a lower mip.
 - Composition runs in a worker; the renderer consumes flat pool + droplet buffers.
+
+### 7.1 Stream addendum — collage typesetting & recession (owner decision, 2026-07-02)
+
+The interim stream view (the current app) stops being a narrow chat column and
+uses the **entire width** like a typeset page:
+
+- **Clusters.** Consecutive related posts — same facet, or a rapid burst
+  regardless of facet — form a *cluster*. Within a cluster, follow-ups **float
+  to the right of their anchor** like words in a line of type, wrap when the
+  width runs out, and every wrapped line except the last is **justified**
+  across the full span: a pleasant collage, a typeset paragraph of glass.
+  Clusters stack chronologically from the bottom, newest lowest. The anchor
+  (first post) carries the avatar; relatedness reads *spatially* (adjacency),
+  so connector beads and fused seams are retired.
+- **Recession (bubbles as background).** A per-pill `recede` factor (0 at the
+  dock → 1 near the top of the screen) melts risen glass into the backdrop:
+  refraction flattens, frost grows, rim/specular/shadow fade, the pill
+  dissolves toward the scene, and its text softly defocuses. The bottom of the
+  screen is crisp *present*; the upper field reads as a **painted background**
+  — the same recede-into-fog instinct as §3.5, expressed in the stream. Scroll
+  back down and everything is fully legible again (nothing is ever gone).
+- **Timestamps.** No "now" badge. A 🕒 header toggle reveals, next to every
+  message, the coarsest relative tier that fits ("5 min ago" / "3 hr ago" /
+  "2 days ago") plus the absolute timestamp.
+
+When replies arrive (§9.2 step 6), a droplet's reply-thread reuses this same
+collage mechanic — spread horizontally beside the anchor droplet.
 
 ---
 
@@ -746,11 +861,11 @@ highlights.
 - Droplets, facets, aggregates, blobs, and layout cache in IndexedDB.
 - Everything works offline. Instant. Private by default.
 
-**Phase B (additive): sync + visiting.**
+**Phase B (additive, in progress — owner decision 2026-07-02): sync + visiting.**
 - A thin posts API + object storage; IndexedDB becomes the local cache/offline
   buffer (last-write-wins or CRDT for multi-device).
 - A **share link** renders a read-only Field for visitors (the "pull" model).
-- Accounts/handles become real; until then `@me` is local.
+- Accounts/handles become real (§9.2) — no longer "later," this is now underway.
 
 Because the renderer and composition engine only consume the local store, adding
 sync does **not** touch them — it's a new data source behind the same store API.
@@ -767,7 +882,10 @@ default posture already protects the user, and we make control explicit:
   the stormy red corner private. Visibility is granular, not all-or-nothing — you
   can vent on the same surface you show off, without exposing the venting.
 - **Tiered share links.** Public, unlisted, or per-person; revocable any time.
-  Visiting is always read-only and opt-in — no one can post *into* your field.
+  Visiting is always read-only and opt-in — no one can post a **droplet** into
+  your field. A **reply** is the one narrow, gated exception (§9.2): it's
+  bounded to a single droplet, off by default (`replyPolicy: "owner-only"`),
+  never joins your own facet routing, and a block removes it instantly.
 - **"Get the fuck out" as a real control.** Block/remove a visitor instantly;
   a removed viewer loses access immediately. Boundary-setting is a button, not a
   plea.
@@ -781,6 +899,83 @@ default posture already protects the user, and we make control explicit:
 
 > The product's job is to let someone express *everything* — delight and pain and
 > defiance — while never taking the boundary decision away from them.
+
+### 9.2 Real backend architecture (rolling your own)
+
+**Owner decision:** real accounts, a real database, and real auth — not a
+managed all-in-one (Supabase/Firebase), and not simulated locally. This is
+the first time AnyField needs a server it owns and operates.
+
+**Stack:**
+- **API service** — a small Node service (Fastify or Hono; minimal footprint,
+  no framework magic) as its **own** Cloud Run service, separate from the
+  existing static-bundle Cloud Run service (`deploy/cloudrun.sh`) so the
+  frontend keeps deploying exactly as it does today.
+- **Database** — Cloud SQL for Postgres. One schema, real relations
+  (Account/Reply/Reaction below), not a document store — this data is
+  inherently relational (a reply belongs to a droplet belongs to a field).
+- **Migrations/queries** — Drizzle ORM (TypeScript-native, lightweight,
+  explicit SQL-shaped migrations — easy to read/review, unlike a heavier
+  codegen ORM).
+- **Auth** — Auth.js, session cookies backed by its Postgres adapter. OAuth
+  (GitHub/Google) or email magic-link over building password storage/reset
+  flows ourselves.
+- **Cloud Run → Cloud SQL** — Cloud SQL Auth Proxy (standard GCP pattern),
+  credentials via Secret Manager, never in the repo or the image.
+- **Frontend wiring** — a new `src/store/api.ts` (per the appendix's proposed
+  `store/` module) is the *only* thing that talks to the new backend. The
+  `Engine`/composition code stays exactly as ignorant of it as this section
+  promised above: it receives `Reply`/`Reaction` objects the same way it
+  already receives `Droplet`s, never touching HTTP/auth directly.
+
+**Data model additions (extends §6):**
+
+```ts
+type Account = {
+  id: string;              // backend-issued
+  handle: string;          // e.g. "@friend"
+  displayName: string;
+  avatarUrl?: string;
+  createdAt: number;
+};
+
+// A reply is a bounded, attached object — NOT a free-standing post into
+// someone's field. It always references exactly one Droplet, and it never
+// joins the owner's own facet routing (§8) — replies are a visitor's voice
+// attached to a moment, not part of the owner's self-portrait (Pillar 3).
+type Reply = {
+  id: string;
+  dropletId: string;       // the droplet being replied to
+  fieldId: string;         // whose field this lives in (permission checks)
+  authorId: string;        // Account.id — may be the owner themself (self-reply)
+  layers: Layer[];         // reuses the §6 Layer union — a reply IS a tiny droplet
+  createdAt: number;
+  updatedAt: number;
+  history?: Revision[];    // same append-only edit model as Droplet (Pillar 2)
+};
+
+// One emoji reaction, bound to a Droplet or Reply. This is the real-button
+// version of §8.3's existing "affect-only bubble" mechanic — a one-tap
+// reaction instead of typing a separate emoji-only message afterward.
+type Reaction = {
+  id: string;
+  targetId: string;        // Droplet.id or Reply.id
+  authorId: string;
+  emoji: string;
+  createdAt: number;
+};
+```
+
+**Build order:**
+
+| Step | Deliverable |
+|------|-------------|
+| 1 | Local Postgres (docker-compose) + Drizzle schema/migrations for `Account`/`Reply`/`Reaction` + `Field.replyPolicy`. |
+| 2 | Auth.js wired to the new API service; session cookies; a minimal "who am I" endpoint. |
+| 3 | Reply/Reaction endpoints — CRUD, permission-checked against `replyPolicy` + the existing block-list (above). |
+| 4 | Frontend: tap-a-bubble-to-reply UI (attached mini-thread) + the emoji quick-react button. |
+| 5 | Deploy: second Cloud Run service + Cloud SQL instance + Secret Manager — real cloud cost starts here, owner sign-off required before this step. |
+| 6 | The reply collage — replies reuse the §7.1 collage typesetting (now built for the owner's own related posts): spread a droplet's reply-thread horizontally next to it using the full screen width. |
 
 ---
 
@@ -799,9 +994,11 @@ default posture already protects the user, and we make control explicit:
 | **8** | Episodes: group bursts, store the affect arc, replay a moment as a current through the field. | A burst is a moment, not scatter (§3.6). |
 | **9** | Eternal-present mechanics: edit (append-only `history`), re-surface/pin "now," age→fog without archiving. | Pillar 2 — the living portrait. |
 | **10** | Identity & boundaries: facet labels/themes, search/zoom-to-facet, per-facet visibility, tiered/revocable read-only share-views, block. | Observable *within your boundaries* (§3.7, §9.1). |
-| **11** | *(future)* Backend sync, accounts, Web APIs + licensed synced lyrics, visiting others' Fields. | Multi-user pull network. |
+| **11** | *(pulled forward, in progress — §9.2)* Backend sync, real accounts, replies + reactions. Web APIs + licensed synced lyrics, visiting others' Fields, remain future. | Multi-user pull network. |
 
-MVP = Phases 0–10, all local.
+MVP = Phases 0–10, all local. Phase 11's backend is being built ahead of
+schedule (owner decision 2026-07-02) specifically to support replies (§9.2) —
+it does not change what "MVP" means for Phases 0–10.
 
 ---
 

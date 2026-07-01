@@ -16,16 +16,26 @@ UI overlay (DESIGN §4 — "the app is the canvas, HTML is chrome").
 src/
   main.tsx              # React entry (no StrictMode — single rAF loop)
   App.tsx               # composes the overlay + the field
+  compose/              # the composition engine (main-thread for now; DESIGN §8)
+    featurize.ts        # text -> hue/affect/topic/tokens (read-only; never edits text)
+    router.ts           # online DP-means-ish routing: similarity, centroid drift, thicken
+    types.ts            # Feat, Droplet, Facet
   field/
-    engine.ts           # item state, physics, WebGPU + Canvas2D renderer, label layer
+    engine.ts           # facets + droplets, physics, WebGPU + Canvas2D renderer, labels
     glass.wgsl          # the Liquid Glass shader (imported as ?raw)
-    featurize.ts        # text -> hue/affect (read-only; never edits text)
     color.ts  types.ts
   ui/
     Field.tsx           # mounts the canvas + label layer, owns the Engine
     ChatDock.tsx        # the glass chat bubble (+ / text / send)
     Chips.tsx           # tap-to-send examples
 ```
+
+**Composition** (`src/compose/`): each sent message is featurized (hue, affect,
+topic, tokens) read-only, then routed to the nearest **facet** by combined
+similarity — join an existing pool, or spawn a new one. Facet centroids drift
+(EMA), near-duplicates **thicken** a droplet (×N) instead of stacking, older
+droplets **compost** into the pool body, and recent affect drives a light
+emotional-weather tint. Text is always stored and shown **verbatim**.
 
 **Rendering** is WebGPU-first with a **Canvas2D fallback**: the shader is
 compiled and the pipeline built *before* the canvas is claimed, so if WebGPU is

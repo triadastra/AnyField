@@ -56,6 +56,36 @@ body,
   font-weight: 500;
   opacity: 0.85;
 }
+.lbl .x {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  opacity: 0.7;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* emergent facet name floating over each pool */
+.facet-lbl {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #2a2d36;
+  opacity: 0.92;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.75);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.facet-lbl .m {
+  opacity: 0.5;
+  font-weight: 600;
+  margin-left: 5px;
+  font-size: 10px;
+}
 
 .brand {
   position: fixed;

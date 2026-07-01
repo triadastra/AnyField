@@ -5,6 +5,7 @@
 struct It { a: vec4<f32>, c: vec4<f32> };  // a.xy=center, a.zw=half-size ; c.rgb=tint, c.a=freshness glow
 struct U {
   res: vec2<f32>, time: f32, n: f32,
+  weather: vec4<f32>,              // rgb + storminess (§2)
 };
 @group(0) @binding(0) var<uniform> u: U;
 @group(0) @binding(1) var<storage, read> items: array<It>;
@@ -37,6 +38,8 @@ fn bg(px: vec2<f32>) -> vec3<f32> {
   if (h21(floor(p * 1.7) + 19.) > 0.978) { col -= vec3(0.46); }
   if (h21(floor(p * 0.5) + 7.) > 0.960) { col += vec3(0.06, 0.03, 0.0); }
   if (h21(floor(p * 0.95) + 33.) > 0.965) { col -= vec3(0.0, 0.02, 0.05); }
+  // emotional weather: a faint wash over the slab on strong storms
+  col = col * mix(vec3(1.0), u.weather.rgb * 1.5, u.weather.a * 0.22) + u.weather.rgb * u.weather.a * 0.04;
   return clamp(col, vec3(0.0), vec3(1.0));
 }
 

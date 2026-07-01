@@ -1,27 +1,35 @@
 import glassWGSL from './glass.wgsl?raw'
 import { hsl2rgb } from './color'
-import { featurize } from './featurize'
-import type { Item, RenderMode } from './types'
+import type { RenderMode } from './types'
+import type { Droplet, Facet } from '../compose/types'
+import { featurize } from '../compose/featurize'
+import { P, similarity, absorb, jaccard } from '../compose/router'
 
-const MAXI = 48 // sketch cap on rendered pills (the real product never deletes)
+const MAXI = 64 // rendered glass instances (pools + fresh droplets)
 
 /**
- * The Field engine. Owns the item list, physics, the WebGPU/Canvas2D renderer,
- * and the imperative DOM label layer. Runs its own rAF loop, off React's path.
+ * The Field engine. Owns facets + droplets, the composition/routing (§8), the
+ * physics, the WebGPU/Canvas2D renderer, and the imperative DOM label layer.
+ * Runs its own rAF loop, off React's path.
  */
 export class Engine {
   mode: RenderMode = '2d'
   onMode?: (m: RenderMode) => void
   onFirstPost?: () => void
 
-  private items: Item[] = []
+  private facets: Facet[] = []
+  private droplets: Droplet[] = []
   private seq = 0
+  private fseq = 0
   private raf = 0
   private t0 = performance.now()
   private posted = false
 
+  // emotional weather: global EMA of recent affect (§2)
+  private W = { val: 0.15, aro: 0.12, vuln: 0 }
+
   private readonly mc = document.createElement('canvas').getContext('2d')!
-  private readonly elMap = new Map<number, HTMLDivElement>()
+  private readonly elMap = new Map<string, HTMLDivElement>()
 
   // WebGPU state
   private device?: GPUDevice
@@ -69,56 +77,135 @@ export class Engine {
   }
 
   resize(): void {
-    const w = Math.round(this.W())
-    const h = Math.round(this.H())
+    const w = Math.round(this.W_())
+    const h = Math.round(this.H_())
     this.canvas.width = w
     this.canvas.height = h
     this.canvas.style.width = w + 'px'
     this.canvas.style.height = h + 'px'
   }
 
-  // ---- input ----
+  // ---- input: featurize -> route into a facet -> spawn a droplet (§3.3, §8) ----
   spawn(text: string): void {
     if (!text.trim()) return
     if (!this.posted) {
       this.posted = true
       this.onFirstPost?.()
     }
-    const f = featurize(text)
+    const feat = featurize(text)
+
+    // weather EMA
+    this.W.val = this.W.val * 0.85 + feat.affect.valence * 0.15
+    this.W.aro = this.W.aro * 0.85 + feat.affect.arousal * 0.15
+    this.W.vuln = this.W.vuln * 0.88 + feat.affect.vulnerability * 0.12
+
+    // classify to nearest facet
+    let best: Facet | null = null
+    let bestSim = -1
+    for (const f of this.facets) {
+      const s = similarity(f, feat)
+      if (s > bestSim) {
+        bestSim = s
+        best = f
+      }
+    }
+    let facet: Facet
+    if (best && bestSim >= P.TAU_NEW) {
+      facet = best
+    } else if (this.facets.length >= P.MAX_FACETS && best) {
+      facet = best // cap reached → fold into nearest (§8.6)
+    } else {
+      facet = this.makeFacet(feat)
+      this.facets.push(facet)
+    }
+    absorb(facet, feat)
+
+    // near-duplicate → thicken an existing droplet, don't stack (§8.5)
+    let dupT: Droplet | null = null
+    let dupB = 0
+    for (const m of facet.members) {
+      if (m.state === 'aggregated') continue
+      const j = jaccard(m.tokens, feat.tokens)
+      if (j > dupB) {
+        dupB = j
+        dupT = m
+      }
+    }
+    if (dupT && dupB >= P.TAU_DUP) {
+      dupT.dup++
+      this.flash(dupT.id)
+      return
+    }
+
+    // a new discrete droplet on the pool surface
+    const idx = facet.members.length
     const raw = this.measure(text)
-    const maxW = 224
-    const two = raw > maxW - 26
-    const hw = (Math.min(raw, maxW - 26) + 26) / 2
-    const hh = two ? 30 : 21
-    this.items.push({
+    const maxW = 210
+    const two = raw > maxW - 24
+    const hw = (Math.min(raw, maxW - 24) + 24) / 2
+    const hh = two ? 28 : 20
+    const d: Droplet = {
       id: this.seq++,
       text,
-      hue: f.hue,
-      sat: f.sat,
-      isEmote: f.isEmote,
-      x: this.W() / 2 + (Math.random() - 0.5) * 30,
-      y: this.H() - 130,
+      hue: feat.hue,
+      sat: feat.sat,
+      isEmote: feat.isEmote,
+      tokens: feat.tokens,
+      dup: 1,
+      facet,
+      angle: idx * 2.399963, // golden angle → even packing
+      orbit: 0.55 + (idx % 4) * 0.14,
+      state: 'fresh',
+      x: this.W_() / 2 + (Math.random() - 0.5) * 30,
+      y: this.H_() - 120, // rises from the dock toward its pool
       hw,
       hh,
-      vx: (Math.random() - 0.5) * 0.6,
-      vy: -3.4 - Math.random() * 1.2,
       born: performance.now(),
-    })
-    if (this.items.length > MAXI) this.items.shift()
+    }
+    facet.members.push(d)
+    this.droplets.push(d)
+
+    // keep only the most recent KEEP discrete; older compost into the pool body
+    const fresh = facet.members.filter((m) => m.state !== 'aggregated')
+    if (fresh.length > P.KEEP) fresh[0].state = 'aggregated'
+  }
+
+  private makeFacet(feat: ReturnType<typeof featurize>): Facet {
+    const a = Math.random() * Math.PI * 2
+    const r = 90 + Math.random() * 130
+    return {
+      id: 'f' + this.fseq++,
+      label: feat.topicLabel || feat.tokens.find((t) => t[0] !== '#') || '…',
+      topic: feat.topic,
+      topics: {},
+      tokenList: [],
+      hue: feat.hue,
+      sat: feat.sat,
+      mass: 0,
+      x: this.W_() / 2 + Math.cos(a) * r,
+      y: this.midY() + Math.sin(a) * r,
+      vx: 0,
+      vy: 0,
+      radius: 66,
+      members: [],
+    }
   }
 
   // ---- helpers ----
-  private W() {
+  private W_() {
     return document.documentElement.clientWidth
   }
-  private H() {
+  private H_() {
     return document.documentElement.clientHeight
   }
-  private TOP() {
-    return 78
+  private topY() {
+    return 84
   }
-  private BOT() {
-    return this.H() - 150
+  private botY() {
+    return this.H_() - 150
+  }
+  private midY() {
+    return (this.topY() + this.botY()) / 2
   }
   private measure(text: string) {
     let mw = 0
@@ -126,62 +213,45 @@ export class Engine {
     return mw
   }
 
-  // ---- physics: buoyancy + box packing ----
+  // ---- physics: pools relax; droplets orbit their pool ----
   private physics() {
-    const top = this.TOP()
-    const bot = this.BOT()
-    const L = 22
-    const R = this.W() - 22
-    for (const it of this.items) {
-      it.vy += -0.16
-      it.vy *= 0.985
-      it.vx *= 0.985
-      it.x += it.vx
-      it.y += it.vy
-      if (it.y < top + it.hh) {
-        it.y = top + it.hh
-        it.vy *= -0.18
-      }
-      if (it.y > bot + it.hh) {
-        it.y = bot + it.hh
-        it.vy = 0
-      }
-      if (it.x < L + it.hw) {
-        it.x = L + it.hw
-        it.vx *= -0.4
-      }
-      if (it.x > R - it.hw) {
-        it.x = R - it.hw
-        it.vx *= -0.4
-      }
-    }
-    const a = this.items
-    for (let i = 0; i < a.length; i++) {
-      for (let j = i + 1; j < a.length; j++) {
-        const p = a[i]
-        const q = a[j]
-        const dx = q.x - p.x
-        const dy = q.y - p.y
-        const minx = (p.hw + q.hw) * 0.94
-        const miny = (p.hh + q.hh) * 0.94 + 6
-        const ox = minx - Math.abs(dx)
-        const oy = miny - Math.abs(dy)
-        if (ox > 0 && oy > 0) {
-          if (ox < oy) {
-            const s = (dx < 0 ? -1 : 1) * ox * 0.5
-            p.x -= s
-            q.x += s
-            p.vx -= s * 0.06
-            q.vx += s * 0.06
-          } else {
-            const s = (dy < 0 ? -1 : 1) * oy * 0.5
-            p.y -= s
-            q.y += s
-            p.vy -= s * 0.06
-            q.vy += s * 0.06
-          }
+    const cx = this.W_() / 2
+    const cy = this.midY()
+    const F = this.facets
+    for (let i = 0; i < F.length; i++) {
+      const a = F[i]
+      let fx = (cx - a.x) * 0.0018
+      let fy = (cy - a.y) * 0.0018
+      for (let j = 0; j < F.length; j++) {
+        if (i === j) continue
+        const b = F[j]
+        const dx = a.x - b.x
+        const dy = a.y - b.y
+        const d2 = dx * dx + dy * dy + 1
+        const want = (a.radius + b.radius) * 0.82
+        if (d2 < want * want) {
+          const d = Math.sqrt(d2)
+          const push = (want - d) / want
+          fx += (dx / d) * push * 1.4
+          fy += (dy / d) * push * 1.4
         }
       }
+      a.vx = (a.vx + fx) * 0.85
+      a.vy = (a.vy + fy) * 0.85
+      a.x += a.vx
+      a.y += a.vy
+      // keep pools on-screen
+      a.x = Math.max(a.radius * 0.5 + 8, Math.min(this.W_() - a.radius * 0.5 - 8, a.x))
+      a.y = Math.max(this.topY() + a.radius * 0.4, Math.min(this.botY(), a.y))
+    }
+    for (const d of this.droplets) {
+      if (d.state === 'aggregated') continue
+      const f = d.facet
+      const tx = f.x + Math.cos(d.angle) * f.radius * d.orbit
+      const ty = f.y + Math.sin(d.angle) * f.radius * d.orbit
+      d.x += (tx - d.x) * 0.08
+      d.y += (ty - d.y) * 0.08
+      d.angle += 0.0007
     }
   }
 
@@ -198,6 +268,18 @@ export class Engine {
     this.drawLabels(now)
   }
 
+  // weather color: storm = low valence + high arousal → red; else warm/cool by mood
+  private weather(): { r: number; g: number; b: number; a: number } {
+    const storm = Math.max(0, (this.W.aro - 0.45) * 1.4) * Math.max(0, (-this.W.val + 0.1) * 1.2)
+    const hue = this.W.val > 0 ? 40 : 2 + (1 - Math.min(1, -this.W.val)) * 30
+    const [r, g, b] = hsl2rgb(hue, 0.6, 0.5)
+    return { r, g, b, a: Math.min(1, storm) }
+  }
+
+  private freshDroplets(): Droplet[] {
+    return this.droplets.filter((d) => d.state !== 'aggregated').slice(-40)
+  }
+
   // ---- WebGPU ----
   private async initGPU(): Promise<boolean> {
     try {
@@ -211,9 +293,6 @@ export class Engine {
       })
       const fmt = navigator.gpu.getPreferredCanvasFormat()
 
-      // compile + build pipeline BEFORE claiming the canvas, so a shader
-      // failure can still fall back cleanly to Canvas2D (the contexts are
-      // mutually exclusive on a single canvas).
       const mod = this.device.createShaderModule({ code: glassWGSL })
       const info = await mod.getCompilationInfo()
       if (info.messages.some((m) => m.type === 'error')) {
@@ -232,9 +311,9 @@ export class Engine {
       this.ctx = ctx
       ctx.configure({ device: this.device, format: fmt, alphaMode: 'opaque' })
 
-      this.uArr = new Float32Array(new ArrayBuffer(4 * 4))
+      this.uArr = new Float32Array(new ArrayBuffer(8 * 4))
       this.iArr = new Float32Array(new ArrayBuffer(MAXI * 8 * 4))
-      this.uBuf = this.device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST })
+      this.uBuf = this.device.createBuffer({ size: this.uArr.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST })
       this.iBuf = this.device.createBuffer({ size: this.iArr.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST })
       this.bind = this.device.createBindGroup({
         layout: this.pipe.getBindGroupLayout(0),
@@ -250,28 +329,47 @@ export class Engine {
     }
   }
 
+  // pack pools (behind) + fresh droplets (in front) into the instance buffer
+  private packInstances(): number {
+    const arr = this.iArr
+    arr.fill(0)
+    let n = 0
+    const put = (x: number, y: number, hw: number, hh: number, hue: number, sat: number, light: number, glow: number) => {
+      if (n >= MAXI) return
+      const [r, g, b] = hsl2rgb(hue, sat, light)
+      const o = n * 8
+      arr[o] = x
+      arr[o + 1] = y
+      arr[o + 2] = hw
+      arr[o + 3] = hh
+      arr[o + 4] = r
+      arr[o + 5] = g
+      arr[o + 6] = b
+      arr[o + 7] = glow
+      n++
+    }
+    for (const f of this.facets) put(f.x, f.y, f.radius, f.radius * 0.72, f.hue, Math.min(1, f.sat + 0.05), 0.58, 0.85)
+    const now = performance.now()
+    for (const d of this.freshDroplets()) {
+      const age = Math.min(1, (now - d.born) / 2500)
+      put(d.x, d.y, d.hw, d.hh, d.hue, Math.min(1, d.sat || 0.7), 0.66, (1 - age) * 0.7)
+    }
+    return n
+  }
+
   private drawGPU(time: number) {
     const { device, ctx, pipe, bind, uBuf, iBuf, uArr, iArr } = this
     if (!device || !ctx || !pipe || !bind || !uBuf || !iBuf) return
-    iArr.fill(0)
-    const list = this.items.slice(-MAXI)
-    list.forEach((it, i) => {
-      const [r, g, b] = hsl2rgb(it.hue, it.sat, 0.6)
-      const age = Math.min(1, (performance.now() - it.born) / 2500)
-      const o = i * 8
-      iArr[o] = it.x
-      iArr[o + 1] = it.y
-      iArr[o + 2] = it.hw
-      iArr[o + 3] = it.hh
-      iArr[o + 4] = r
-      iArr[o + 5] = g
-      iArr[o + 6] = b
-      iArr[o + 7] = 1 - age
-    })
+    const n = this.packInstances()
+    const w = this.weather()
     uArr[0] = this.canvas.width
     uArr[1] = this.canvas.height
     uArr[2] = time
-    uArr[3] = list.length
+    uArr[3] = n
+    uArr[4] = w.r
+    uArr[5] = w.g
+    uArr[6] = w.b
+    uArr[7] = w.a
     device.queue.writeBuffer(uBuf, 0, uArr)
     device.queue.writeBuffer(iBuf, 0, iArr)
     const enc = device.createCommandEncoder()
@@ -308,8 +406,7 @@ export class Engine {
       const y = Math.random() * h
       const r = Math.random() * 1.6
       const v = Math.random()
-      g.fillStyle =
-        v > 0.7 ? `rgba(60,60,64,${0.18 + Math.random() * 0.25})` : v > 0.4 ? 'rgba(150,150,150,0.18)' : 'rgba(255,255,255,0.22)'
+      g.fillStyle = v > 0.7 ? `rgba(60,60,64,${0.18 + Math.random() * 0.25})` : v > 0.4 ? 'rgba(150,150,150,0.18)' : 'rgba(255,255,255,0.22)'
       g.beginPath()
       g.arc(x, y, r, 0, 7)
       g.fill()
@@ -324,32 +421,44 @@ export class Engine {
     const h = this.canvas.height
     if (!this.granite || this.granite.width !== w || this.granite.height !== h) this.granite = this.makeGranite(w, h)
     g.drawImage(this.granite, 0, 0)
-    for (const it of this.items.slice(-MAXI)) {
-      const [r, gg, b] = hsl2rgb(it.hue, it.sat, 0.62).map((v) => (v * 255) | 0)
-      const x = it.x - it.hw
-      const y = it.y - it.hh
-      const w2 = it.hw * 2
-      const h2 = it.hh * 2
-      const rad = Math.min(it.hw, it.hh)
-      g.save()
-      g.shadowColor = 'rgba(40,44,60,0.28)'
-      g.shadowBlur = 18
-      g.shadowOffsetY = 8
-      this.rrect(g, x, y, w2, h2, rad)
-      g.fillStyle = 'rgba(255,255,255,0.55)'
-      g.fill()
-      g.restore()
-      this.rrect(g, x, y, w2, h2, rad)
-      const grd = g.createLinearGradient(x, y, x, y + h2)
-      grd.addColorStop(0, `rgba(${r},${gg},${b},0.26)`)
-      grd.addColorStop(1, `rgba(${r},${gg},${b},0.10)`)
-      g.fillStyle = grd
-      g.fill()
-      g.lineWidth = 1.2
-      g.strokeStyle = 'rgba(255,255,255,0.75)'
-      this.rrect(g, x + 0.6, y + 0.6, w2 - 1.2, h2 - 1.2, rad)
-      g.stroke()
+    const wc = this.weather()
+    if (wc.a > 0.02) {
+      g.fillStyle = `rgba(${(wc.r * 255) | 0},${(wc.g * 255) | 0},${(wc.b * 255) | 0},${wc.a * 0.12})`
+      g.fillRect(0, 0, w, h)
     }
+    for (const f of this.facets) this.glassRect(g, f.x, f.y, f.radius, f.radius * 0.72, f.hue, f.sat, 0.34)
+    const now = performance.now()
+    for (const d of this.freshDroplets()) {
+      const age = Math.min(1, (now - d.born) / 2500)
+      this.glassRect(g, d.x, d.y, d.hw, d.hh, d.hue, d.sat || 0.7, 0.22 + (1 - age) * 0.12)
+    }
+  }
+
+  private glassRect(g: CanvasRenderingContext2D, cx: number, cy: number, hw: number, hh: number, hue: number, sat: number, alpha: number) {
+    const [r, gg, b] = hsl2rgb(hue, sat, 0.62).map((v) => (v * 255) | 0)
+    const x = cx - hw
+    const y = cy - hh
+    const w2 = hw * 2
+    const h2 = hh * 2
+    const rad = Math.min(hw, hh)
+    g.save()
+    g.shadowColor = 'rgba(40,44,60,0.24)'
+    g.shadowBlur = 16
+    g.shadowOffsetY = 7
+    this.rrect(g, x, y, w2, h2, rad)
+    g.fillStyle = 'rgba(255,255,255,0.5)'
+    g.fill()
+    g.restore()
+    this.rrect(g, x, y, w2, h2, rad)
+    const grd = g.createLinearGradient(x, y, x, y + h2)
+    grd.addColorStop(0, `rgba(${r},${gg},${b},${alpha + 0.06})`)
+    grd.addColorStop(1, `rgba(${r},${gg},${b},${alpha * 0.5})`)
+    g.fillStyle = grd
+    g.fill()
+    g.lineWidth = 1.1
+    g.strokeStyle = 'rgba(255,255,255,0.7)'
+    this.rrect(g, x + 0.6, y + 0.6, w2 - 1.2, h2 - 1.2, rad)
+    g.stroke()
   }
 
   private rrect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -363,23 +472,50 @@ export class Engine {
     g.closePath()
   }
 
-  // ---- crisp verbatim text labels over the glass ----
+  // ---- DOM labels: emergent facet names + verbatim droplet text ----
+  private el(id: string, cls: string): HTMLDivElement {
+    let e = this.elMap.get(id)
+    if (!e) {
+      e = document.createElement('div')
+      e.className = cls
+      this.labels.appendChild(e)
+      this.elMap.set(id, e)
+    }
+    return e
+  }
+  private flash(dropId: number) {
+    const e = this.elMap.get('d' + dropId)
+    if (e) {
+      e.animate([{ transform: e.style.transform + ' scale(1.14)' }, { transform: e.style.transform }], { duration: 200 })
+    }
+  }
+
   private drawLabels(now: number) {
-    const alive = new Set<number>()
-    for (const it of this.items) {
-      alive.add(it.id)
-      let e = this.elMap.get(it.id)
-      if (!e) {
-        e = document.createElement('div')
-        e.className = 'lbl' + (it.isEmote ? ' emote' : '')
-        e.textContent = it.text // VERBATIM
-        this.labels.appendChild(e)
-        this.elMap.set(it.id, e)
+    const alive = new Set<string>()
+    for (const f of this.facets) {
+      const id = 'f' + f.id
+      alive.add(id)
+      const e = this.el(id, 'facet-lbl')
+      e.style.transform = `translate(${f.x}px,${f.y - f.radius * 0.72 - 12}px) translate(-50%,-50%)`
+      e.innerHTML = `${escapeHtml(f.label)}<span class="m">${f.mass}</span>`
+    }
+    for (const d of this.droplets) {
+      const id = 'd' + d.id
+      if (d.state === 'aggregated') {
+        const ex = this.elMap.get(id)
+        if (ex) {
+          ex.remove()
+          this.elMap.delete(id)
+        }
+        continue
       }
-      const age = Math.min(1, (now - it.born) / 8000)
-      e.style.transform = `translate(${it.x}px,${it.y}px) translate(-50%,-50%)`
-      e.style.maxWidth = it.hw * 2 - 14 + 'px'
-      e.style.opacity = String(0.96 - age * 0.12)
+      alive.add(id)
+      const e = this.el(id, 'lbl' + (d.isEmote ? ' emote' : ''))
+      const age = Math.min(1, (now - d.born) / 8000)
+      e.style.transform = `translate(${d.x}px,${d.y}px) translate(-50%,-50%)`
+      e.style.maxWidth = d.hw * 2 - 14 + 'px'
+      e.style.opacity = String(0.96 - age * 0.14)
+      e.innerHTML = escapeHtml(d.text) + (d.dup > 1 ? `<span class="x">×${d.dup}</span>` : '')
     }
     for (const [id, e] of this.elMap) {
       if (!alive.has(id)) {
@@ -388,4 +524,8 @@ export class Engine {
       }
     }
   }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] as string)
 }

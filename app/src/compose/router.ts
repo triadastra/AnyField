@@ -54,5 +54,5 @@ export function absorb(f: Facet, feat: Feat): void {
   }
   for (const t of feat.tokens) if (!f.tokenList.includes(t)) f.tokenList.push(t)
   if (f.tokenList.length > 40) f.tokenList = f.tokenList.slice(-40)
-  f.radius = 66 + Math.sqrt(f.mass) * 24
+  f.radius = 48 + Math.sqrt(f.mass) * 17
 }

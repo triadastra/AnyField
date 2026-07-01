@@ -16,6 +16,8 @@ export class Engine {
   mode: RenderMode = '2d'
   onMode?: (m: RenderMode) => void
   onFirstPost?: () => void
+  onStats?: (s: { facets: number; mood: string }) => void
+  private lastStats = 0
 
   private facets: Facet[] = []
   private droplets: Droplet[] = []
@@ -186,7 +188,7 @@ export class Engine {
       y: this.midY() + Math.sin(a) * r,
       vx: 0,
       vy: 0,
-      radius: 66,
+      radius: 48,
       members: [],
     }
   }
@@ -220,20 +222,20 @@ export class Engine {
     const F = this.facets
     for (let i = 0; i < F.length; i++) {
       const a = F[i]
-      let fx = (cx - a.x) * 0.0018
-      let fy = (cy - a.y) * 0.0018
+      let fx = (cx - a.x) * 0.0013
+      let fy = (cy - a.y) * 0.0013
       for (let j = 0; j < F.length; j++) {
         if (i === j) continue
         const b = F[j]
         const dx = a.x - b.x
         const dy = a.y - b.y
         const d2 = dx * dx + dy * dy + 1
-        const want = (a.radius + b.radius) * 0.82
+        const want = (a.radius + b.radius) * 1.02
         if (d2 < want * want) {
           const d = Math.sqrt(d2)
           const push = (want - d) / want
-          fx += (dx / d) * push * 1.4
-          fy += (dy / d) * push * 1.4
+          fx += (dx / d) * push * 2.0
+          fy += (dy / d) * push * 2.0
         }
       }
       a.vx = (a.vx + fx) * 0.85
@@ -266,6 +268,18 @@ export class Engine {
       // never let a render error kill the loop — labels still draw
     }
     this.drawLabels(now)
+    if (now - this.lastStats > 400) {
+      this.lastStats = now
+      this.onStats?.({ facets: this.facets.length, mood: this.mood() })
+    }
+  }
+
+  private mood(): string {
+    if (this.weather().a > 0.28) return 'storm'
+    if (this.W.aro > 0.55) return 'excited'
+    if (this.W.val < -0.15) return 'wistful'
+    if (this.W.aro < 0.2) return 'calm'
+    return 'content'
   }
 
   // weather color: storm = low valence + high arousal → red; else warm/cool by mood
@@ -348,7 +362,7 @@ export class Engine {
       arr[o + 7] = glow
       n++
     }
-    for (const f of this.facets) put(f.x, f.y, f.radius, f.radius * 0.72, f.hue, Math.min(1, f.sat + 0.05), 0.58, 0.85)
+    for (const f of this.facets) put(f.x, f.y, f.radius, f.radius * 0.72, f.hue, Math.min(1, f.sat + 0.08), 0.58, 0.95)
     const now = performance.now()
     for (const d of this.freshDroplets()) {
       const age = Math.min(1, (now - d.born) / 2500)
@@ -484,21 +498,29 @@ export class Engine {
     return e
   }
   private flash(dropId: number) {
-    const e = this.elMap.get('d' + dropId)
-    if (e) {
-      e.animate([{ transform: e.style.transform + ' scale(1.14)' }, { transform: e.style.transform }], { duration: 200 })
-    }
+    const inner = this.elMap.get('d' + dropId)?.querySelector('.lbl-in') as HTMLElement | null
+    inner?.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 240, easing: 'ease-out' })
   }
 
   private drawLabels(now: number) {
     const alive = new Set<string>()
+
     for (const f of this.facets) {
       const id = 'f' + f.id
       alive.add(id)
       const e = this.el(id, 'facet-lbl')
+      if (!e.dataset.init) {
+        e.dataset.init = '1'
+        e.innerHTML = '<span class="lbl-in"></span><span class="m"></span>'
+      }
+      const nameEl = e.children[0] as HTMLElement
+      const mEl = e.children[1] as HTMLElement
+      if (nameEl.textContent !== f.label) nameEl.textContent = f.label
+      const m = String(f.mass)
+      if (mEl.textContent !== m) mEl.textContent = m
       e.style.transform = `translate(${f.x}px,${f.y - f.radius * 0.72 - 12}px) translate(-50%,-50%)`
-      e.innerHTML = `${escapeHtml(f.label)}<span class="m">${f.mass}</span>`
     }
+
     for (const d of this.droplets) {
       const id = 'd' + d.id
       if (d.state === 'aggregated') {
@@ -511,12 +533,29 @@ export class Engine {
       }
       alive.add(id)
       const e = this.el(id, 'lbl' + (d.isEmote ? ' emote' : ''))
+      if (!e.dataset.init) {
+        e.dataset.init = '1'
+        const s = document.createElement('span')
+        s.className = 'lbl-in'
+        s.textContent = d.text // VERBATIM
+        e.appendChild(s)
+      }
+      if (d.dup > 1) {
+        let bx = e.querySelector('.x') as HTMLElement | null
+        if (!bx) {
+          bx = document.createElement('span')
+          bx.className = 'x'
+          e.appendChild(bx)
+        }
+        const t = '×' + d.dup
+        if (bx.textContent !== t) bx.textContent = t
+      }
       const age = Math.min(1, (now - d.born) / 8000)
       e.style.transform = `translate(${d.x}px,${d.y}px) translate(-50%,-50%)`
       e.style.maxWidth = d.hw * 2 - 14 + 'px'
       e.style.opacity = String(0.96 - age * 0.14)
-      e.innerHTML = escapeHtml(d.text) + (d.dup > 1 ? `<span class="x">×${d.dup}</span>` : '')
     }
+
     for (const [id, e] of this.elMap) {
       if (!alive.has(id)) {
         e.remove()
@@ -524,8 +563,4 @@ export class Engine {
       }
     }
   }
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] as string)
 }
